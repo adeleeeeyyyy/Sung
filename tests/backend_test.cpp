@@ -682,6 +682,23 @@ private slots:
     QCOMPARE(Romanizer::romanizeText("I love you"), QString("I love you"));
     QCOMPARE(Romanizer::romanizeText("I love you 君が好き"), QString("I love you kimi ga suki"));
 
+    // Bug 1 verification: Japanese lines must NOT leave partial Japanese script in the output
+    const QString jpLine = "寝溜めした 日本語 te imi naino shitteru";
+    const QString jpRomanized = Romanizer::romanizeText(jpLine);
+    QVERIFY(!jpRomanized.isEmpty());
+    for (const QChar &ch : jpRomanized) {
+      const char32_t u = ch.unicode();
+      // Ensure no Hiragana, Katakana, or Kanji remains
+      QVERIFY(u < 0x3040 || (u > 0x30FF && u < 0x4E00) || u > 0x9FAF);
+    }
+
+    // Bug 2 verification: Korean text with complex Jongseong (e.g. ㅍ, ㅎ, ㅆ, ㄶ, etc.) must NOT crash
+    const QString krLine1 = "맨 처음 교복을 입던 날처럼 어색한 기분과 들뜬 마음";
+    const QString krLine2 = "시간이 너무 아까워 내일 또 만나고 싶어";
+    const QString krLine3 = "깊은 숲 속 밖을 보았더니 있더라";
+    const QString krRomanized = Romanizer::romanizeText(krLine1 + "\n" + krLine2 + "\n" + krLine3);
+    QVERIFY(!krRomanized.isEmpty());
+
     Backend b;
     b.setRomanizedLyrics(false);
     QVERIFY(!b.romanizedLyrics());

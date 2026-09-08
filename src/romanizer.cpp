@@ -8,15 +8,24 @@ namespace {
 
 struct KoreanData {
   static const QStringList &choseong() {
-    static const QStringList list = {"g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"};
+    static const QStringList list = {
+        "g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h"
+    };
     return list;
   }
   static const QStringList &jungseong() {
-    static const QStringList list = {"a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"};
+    static const QStringList list = {
+        "a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "wa", "wae", "oe", "yo", "u", "wo", "we", "wi", "yu", "eu", "ui", "i"
+    };
     return list;
   }
+  // Standard 28 Hangul Jongseong (final consonants)
   static const QStringList &jongseong() {
-    static const QStringList list = {"", "k", "k", "ks", "n", "nj", "nh", "t", "l", "lg", "lm", "lb", "ls", "lt", "lp", "lh", "m", "p", "ps", "t", "ss", "ng", "t", "t", "p", "h"};
+    static const QStringList list = {
+        "",   "k",  "kk", "ks", "n",  "nj", "nh", "t",  "l",  "lg",
+        "lm", "lb", "ls", "lt", "lp", "lh", "m",  "p",  "ps", "t",
+        "ss", "ng", "t",  "t",  "k",  "t",  "p",  "h"
+    };
     return list;
   }
 };
@@ -37,18 +46,32 @@ QString romanizeKoreanWord(const QString &word) {
       const int jung = (sIdx % 588) / 28;
       const int jong = sIdx % 28;
 
-      QString cStr = choList[cho];
-      const QString vStr = jungList[jung];
-      QString fStr = jongList[jong];
+      QString cStr = (cho >= 0 && cho < choList.size()) ? choList[cho] : QString();
+      const QString vStr = (jung >= 0 && jung < jungList.size()) ? jungList[jung] : QString();
+      QString fStr = (jong >= 0 && jong < jongList.size()) ? jongList[jong] : QString();
 
-      if (cStr == "r") {
-        if (i == 0 || word[i - 1].unicode() < 0xAC00 || word[i - 1].unicode() > 0xD7A3) {
-          cStr = "r";
-        } else {
+      // Liaison rule: if next syllable starts with 'ㅇ' (cho == 11)
+      if (jong > 0 && i + 1 < word.size()) {
+        const char32_t nextCode = word[i + 1].unicode();
+        if (nextCode >= 0xAC00 && nextCode <= 0xD7A3) {
+          const int nextCho = static_cast<int>((nextCode - 0xAC00) / 588);
+          if (nextCho == 11) {
+            fStr = QString();
+          }
+        }
+      }
+
+      // Initial 'ㄹ' rule
+      if (cho == 5) {
+        if (i > 0 && word[i - 1].unicode() >= 0xAC00 && word[i - 1].unicode() <= 0xD7A3) {
           const int prevJong = static_cast<int>((word[i - 1].unicode() - 0xAC00) % 28);
           if (prevJong == 8) {
             cStr = "l";
+          } else {
+            cStr = "r";
           }
+        } else {
+          cStr = "r";
         }
       }
 
@@ -60,131 +83,114 @@ QString romanizeKoreanWord(const QString &word) {
   return res;
 }
 
-const QHash<QString, QString> &japaneseDict() {
+const QHash<QString, QString> &japaneseWordDict() {
   static const QHash<QString, QString> dict = {
-      {"ありがとう", "arigatou"},
-      {"夜に駆ける", "yoru ni kakeru"},
-      {"君のことが好き", "kimi no koto ga suki"},
-      {"君が好き", "kimi ga suki"},
-      {"愛してる", "aishiteru"},
-      {"愛", "ai"},
-      {"君", "kimi"},
-      {"夜", "yoru"},
-      {"駆ける", "kakeru"},
-      {"好き", "suki"},
-      {"こと", "koto"},
-      {"私", "watashi"},
-      {"僕", "boku"},
-      {"俺", "ore"},
-      {"あなた", "anata"},
-      {"心", "kokoro"},
-      {"胸", "mune"},
-      {"瞳", "hitomi"},
-      {"目", "me"},
-      {"手", "te"},
-      {"声", "koe"},
-      {"夢", "yume"},
-      {"空", "sora"},
-      {"海", "umi"},
-      {"風", "kaze"},
-      {"雨", "ame"},
-      {"雪", "yuki"},
-      {"花", "hana"},
-      {"星", "hoshi"},
-      {"月", "tsuki"},
-      {"太陽", "taiyou"},
-      {"光", "hikari"},
-      {"影", "kage"},
-      {"世界", "sekai"},
-      {"未来", "mirai"},
-      {"過去", "kako"},
-      {"今", "ima"},
-      {"明日", "ashita"},
-      {"昨日", "kinou"},
-      {"今日", "kyou"},
-      {"時間", "jikan"},
-      {"永遠", "eien"},
-      {"幸せ", "shiawase"},
-      {"涙", "namida"},
-      {"笑う", "warau"},
-      {"泣く", "naku"},
-      {"歌", "uta"},
-      {"曲", "kyoku"},
-      {"音", "oto"},
-      {"言葉", "kotoba"},
-      {"想い", "omoi"},
-      {"一人", "hitori"},
-      {"二人", "futari"},
-      {"一緒", "issho"},
-      {"友達", "tomodachi"},
-      {"恋", "koi"},
-      {"人", "hito"},
-      {"道", "michi"},
-      {"街", "machi"},
-      {"家", "ie"},
-      {"場所", "basho"},
-      {"扉", "tobira"},
-      {"寝溜め", "nedame"},
-      {"意味", "imi"},
-      {"知ってる", "shitteru"},
-      {"他人", "tanin"},
-      {"人生", "jinsei"},
-      {"機嫌", "kigen"},
-      {"礼典", "reiten"},
-      {"失点", "shitten"},
-      {"怠惰", "taida"},
-      {"論理", "ronri"},
-      {"絶頂", "zetchou"},
-      {"返事", "henji"},
-      {"街灯", "gaitou"},
-      {"明かり", "akari"},
-      {"照らして", "terashite"},
-      {"誰か", "dareka"},
-      {"祝ってる", "iwatteru"},
-      {"僻んで", "higande"},
-      {"焦り", "aseri"},
-      {"日差し", "hizashi"},
-      {"眩しい", "mabushii"},
-      {"体", "karada"},
-      {"感情", "kanjou"},
-      {"何者", "nanimono"},
-      {"今更", "imasara"},
-      {"引き下がれない", "hikisagarenai"},
-      {"皆", "mina"},
-      {"寝静まれば", "neshizumareba"},
-      {"出番", "deban"},
-      {"来る", "kuru"},
-      {"冴えない", "saenai"},
-      {"踊り明かす", "odoriakasu"},
-      {"海馬", "kaiba"},
-      {"灰だらけ", "haidarake"},
-      {"誰", "dare"},
-      {"情け", "nasake"},
-      {"肺", "hai"},
-      {"鳴け", "nake"},
-      {"廃", "hai"},
-      {"息", "iki"},
-      {"助言", "jogen"},
-      {"一過性", "ikkasei"},
-      {"通じ合えない", "tsuujiaenai"},
-      {"礼儀", "reigi"},
-      {"命令通り", "meireidoori"},
-      {"傷んでく", "itandeku"},
-      {"腐ってく", "kusatteku"},
-      {"貸し借り", "kashikari"},
-      {"段々", "dandan"},
-      {"複雑", "fukuzatsu"},
-      {"刻み込まれてしまった", "kizamikomarete shimatta"},
-      {"惨め", "mijime"},
-      {"庇った", "kabatta"},
-      {"過去問", "kakomon"},
-      {"解いて", "toite"},
-      {"夜明け", "yoake"}
+      {"ありがとう", "arigatou"}, {"夜に駆ける", "yoru ni kakeru"}, {"君のことが好き", "kimi no koto ga suki"},
+      {"君が好き", "kimi ga suki"}, {"愛してる", "aishiteru"}, {"寝溜めした", "nedame shita"},
+      {"寝溜め", "nedame"}, {"意味無いの", "imi naino"}, {"意味無い", "imi nai"}, {"意味", "imi"},
+      {"知ってる", "shitteru"}, {"焦りが", "aseri ga"}, {"焦り", "aseri"}, {"はみ出した", "hamidashita"},
+      {"日差し", "hizashi"}, {"眩しい", "mabushii"}, {"体", "karada"}, {"だる重", "daru omo"},
+      {"感情", "kanjou"}, {"モドキ", "modoki"}, {"踊ったとて", "odotta tote"}, {"何者", "nanimono"},
+      {"今更", "imasara"}, {"引き下がれない", "hikisagarenai"}, {"皆が寝静まれば", "mina ga neshizumareba"},
+      {"寝静まれば", "neshizumareba"}, {"出番来る", "deban kuru"}, {"出番", "deban"}, {"来る", "kuru"},
+      {"冴えない", "saenai"}, {"踊り明かすからね", "odoriakasu kara ne"}, {"踊り明かす", "odoriakasu"},
+      {"海馬まで", "kaiba made"}, {"海馬", "kaiba"}, {"灰だらけ", "haidarake"}, {"わかった気になれんのかね", "wakatta ki ni naren no ka ne"},
+      {"夜は情け", "yoru wa nasake"}, {"情け", "nasake"}, {"肺が鳴け", "hai ga nake"}, {"肺", "hai"},
+      {"鳴け", "nake"}, {"ネット上", "netto jou"}, {"息してる", "iki shiteru"}, {"結んで開いて", "musunde hiraite"},
+      {"顔も見えない", "kao mo mienai"}, {"助言", "jogen"}, {"一過性", "ikkasei"}, {"エンカウント", "enkaunto"},
+      {"通じ合えない", "tsuujiaenai"}, {"礼儀", "reigi"}, {"命令通り", "meireidoori"}, {"傷んでく", "itandeku"},
+      {"腐ってく", "kusatteku"}, {"綺羅キラ星", "kirakira hoshi"}, {"綺羅", "kira"}, {"キラ星", "kirahoshi"},
+      {"吸って吐いて", "sutte haite"}, {"貸し借り", "kashikari"}, {"段々", "dandan"}, {"ステップ複雑", "suteppu fukuzatsu"},
+      {"複雑", "fukuzatsu"}, {"刻み込まれてしまった", "kizamikomarete shimatta"}, {"惨め", "mijime"},
+      {"庇った", "kabatta"}, {"葬", "hou"}, {"過去問", "kakomon"}, {"解いて", "toite"}, {"夜明け", "yoake"},
+      {"残酷な天使のテーゼ", "zankoku na tenshi no teeze"}, {"残酷な", "zankoku na"}, {"天使の", "tenshi no"},
+      {"テーゼ", "teeze"}, {"少年よ", "shounen yo"}, {"神話になれ", "shinwa ni nare"}, {"神話", "shinwa"},
+      {"少年", "shounen"}, {"蒼い風", "aoi kaze"}, {"胸のドア", "mune no doa"}, {"叩いても", "tadaitemo"},
+      {"微笑んでる", "hohoenderu"}, {"運命さえ", "unmei sae"}, {"瞳", "hitomi"}, {"羽があること", "hane ga aru koto"},
+      {"窓辺から", "madobe kara"}, {"飛び立つ", "tobitatsu"}, {"ほとばしる", "hotobashiru"}, {"熱いパトス", "atsui patosu"},
+      {"思い出を", "omoide o"}, {"裏切るなら", "uragiru nara"}, {"宇宙を抱いて", "uchuu o daite"}, {"輝く", "kagayaku"},
+      {"揺りかご", "yurikago"}, {"使者", "shisha"}, {"月あかり", "tsukiakari"}, {"映してる", "utsushiteru"},
+      {"バイブル", "baiburu"}, {"悲しみ", "kanashimi"}, {"抱きしめた", "dakishimeta"}, {"命のかたち", "inochi no katachi"},
+      {"光を放つ", "hikari o hanatsu"}, {"歴史をつくる", "rekishi o tsukuru"}, {"女神", "megami"}, {"生きる", "ikiru"},
+      {"愛", "ai"}, {"君", "kimi"}, {"夜", "yoru"}, {"駆ける", "kakeru"}, {"好き", "suki"}, {"こと", "koto"},
+      {"私", "watashi"}, {"僕", "boku"}, {"俺", "ore"}, {"あなた", "anata"}, {"心", "kokoro"}, {"胸", "mune"},
+      {"目", "me"}, {"手", "te"}, {"声", "koe"}, {"夢", "yume"}, {"空", "sora"}, {"海", "umi"}, {"風", "kaze"},
+      {"雨", "ame"}, {"雪", "yuki"}, {"花", "hana"}, {"星", "hoshi"}, {"月", "tsuki"}, {"太陽", "taiyou"},
+      {"光", "hikari"}, {"影", "kage"}, {"世界", "sekai"}, {"未来", "mirai"}, {"過去", "kako"}, {"今", "ima"},
+      {"明日", "ashita"}, {"昨日", "kinou"}, {"今日", "kyou"}, {"時間", "jikan"}, {"永遠", "eien"},
+      {"幸せ", "shiawase"}, {"涙", "namida"}, {"笑う", "warau"}, {"泣く", "naku"}, {"歌", "uta"}, {"曲", "kyoku"},
+      {"音", "oto"}, {"言葉", "kotoba"}, {"想い", "omoi"}, {"一人", "hitori"}, {"二人", "futari"},
+      {"一緒", "issho"}, {"友達", "tomodachi"}, {"恋", "koi"}, {"人", "hito"}, {"道", "michi"}, {"街", "machi"},
+      {"家", "ie"}, {"場所", "basho"}, {"扉", "tobira"}
   };
   return dict;
 }
 
-const QHash<QString, QString> &kanaMap() {
+const QHash<QString, QString> &kanjiSingleDict() {
+  static const QHash<QString, QString> dict = {
+      {"愛", "ai"}, {"気", "ki"}, {"心", "kokoro"}, {"人", "hito"}, {"日", "hi"}, {"月", "tsuki"},
+      {"火", "hi"}, {"水", "mizu"}, {"木", "ki"}, {"金", "kin"}, {"土", "tsuchi"}, {"天", "ten"},
+      {"地", "chi"}, {"男", "otoko"}, {"女", "onna"}, {"子", "ko"}, {"目", "me"}, {"手", "te"},
+      {"足", "ashi"}, {"耳", "mimi"}, {"口", "kuchi"}, {"顔", "kao"}, {"頭", "atama"}, {"声", "koe"},
+      {"言", "i"}, {"話", "hana"}, {"思", "omo"}, {"見", "mi"}, {"知", "shi"}, {"聞", "ki"},
+      {"行", "i"}, {"来", "ki"}, {"出", "de"}, {"入", "hai"}, {"立", "tatsu"}, {"座", "suwa"},
+      {"走", "hashi"}, {"飛", "tobi"}, {"泳", "oyo"}, {"買", "ka"}, {"売", "uri"}, {"書", "ka"},
+      {"読", "yo"}, {"食", "tabe"}, {"飲", "nomi"}, {"作", "tsuku"}, {"会", "a"}, {"合", "a"},
+      {"生", "iki"}, {"死", "shi"}, {"笑", "wara"}, {"泣", "na"}, {"歌", "uta"}, {"音", "oto"},
+      {"光", "hika"}, {"影", "kage"}, {"風", "kaze"}, {"雨", "ame"}, {"雪", "yuki"}, {"空", "sora"},
+      {"海", "umi"}, {"山", "yama"}, {"川", "kawa"}, {"花", "hana"}, {"星", "hoshi"}, {"夜", "yoru"},
+      {"朝", "asa"}, {"昼", "hiru"}, {"夕", "yuu"}, {"春", "haru"}, {"夏", "natsu"}, {"秋", "aki"},
+      {"冬", "fuyu"}, {"今", "ima"}, {"昔", "mukashi"}, {"前", "mae"}, {"後", "ato"}, {"上", "ue"},
+      {"下", "shita"}, {"中", "naka"}, {"外", "soto"}, {"左", "hidari"}, {"右", "migi"}, {"東", "higashi"},
+      {"西", "nishi"}, {"南", "minami"}, {"北", "kita"}, {"大", "oo"}, {"小", "chii"}, {"高", "taka"},
+      {"安", "yasu"}, {"新", "atara"}, {"古", "furu"}, {"長", "naga"}, {"短", "mijika"}, {"重", "omo"},
+      {"軽", "karu"}, {"強", "tsuyo"}, {"弱", "yowa"}, {"白", "shiro"}, {"黒", "kuro"}, {"赤", "aka"},
+      {"青", "ao"}, {"黄", "kii"}, {"緑", "midori"}, {"君", "kimi"}, {"僕", "boku"}, {"俺", "ore"},
+      {"私", "watashi"}, {"彼", "kare"}, {"神", "kami"}, {"鬼", "oni"}, {"竜", "ryuu"}, {"王", "ou"},
+      {"夢", "yume"}, {"命", "inochi"}, {"世", "se"}, {"界", "kai"}, {"時", "toki"}, {"間", "aida"},
+      {"道", "michi"}, {"街", "machi"}, {"家", "ie"}, {"國", "kuni"}, {"国", "kuni"}, {"城", "shiro"},
+      {"無", "nai"}, {"有", "ari"}, {"非", "hi"}, {"不", "fu"}, {"未", "mi"}, {"切", "setsu"},
+      {"絶", "zetsu"}, {"対", "tai"}, {"同", "ona"}, {"異", "koto"}, {"親", "oya"}, {"友", "tomo"},
+      {"敵", "teki"}, {"勝", "katsu"}, {"負", "make"}, {"戦", "tata"}, {"争", "araso"}, {"平", "hei"},
+      {"和", "wa"}, {"希", "ki"}, {"望", "bou"}, {"勇", "yuu"}, {"情", "jou"}
+  };
+  return dict;
+}
+
+const QHash<QString, QString> &yoonKanaMap() {
+  static const QHash<QString, QString> map = {
+      {"きゃ", "kya"}, {"きゅ", "kyu"}, {"きょ", "kyo"},
+      {"しゃ", "sha"}, {"しゅ", "shu"}, {"しょ", "sho"},
+      {"ちゃ", "cha"}, {"ちゅ", "chu"}, {"ちょ", "cho"},
+      {"にゃ", "nya"}, {"にゅ", "nyu"}, {"にょ", "nyo"},
+      {"ひゃ", "hya"}, {"ひゅ", "hyu"}, {"ひょ", "hyo"},
+      {"みゃ", "mya"}, {"みゅ", "myu"}, {"みょ", "myo"},
+      {"りゃ", "rya"}, {"りゅ", "ryu"}, {"りょ", "ryo"},
+      {"ぎゃ", "gya"}, {"ぎゅ", "gyu"}, {"ぎょ", "gyo"},
+      {"じゃ", "ja"}, {"じゅ", "ju"}, {"じょ", "jo"},
+      {"ぢゃ", "ja"}, {"ぢゅ", "ju"}, {"ぢょ", "jo"},
+      {"びゃ", "bya"}, {"びゅ", "byu"}, {"びょ", "byo"},
+      {"ぴゃ", "pya"}, {"ぴゅ", "pyu"}, {"ぴょ", "pyo"},
+      {"キャ", "kya"}, {"キュ", "kyu"}, {"キョ", "kyo"},
+      {"シャー", "shaa"}, {"シャ", "sha"}, {"シュ", "shu"}, {"ショ", "sho"},
+      {"チャ", "cha"}, {"チュ", "chu"}, {"チョ", "cho"},
+      {"ニャ", "nya"}, {"ニュ", "nyu"}, {"ニョ", "nyo"},
+      {"ヒャ", "hya"}, {"ヒュ", "hyu"}, {"ヒョ", "hyo"},
+      {"ミャ", "mya"}, {"ミュ", "myu"}, {"ミョ", "myo"},
+      {"リャ", "rya"}, {"リュ", "ryu"}, {"リョ", "ryo"},
+      {"ギャ", "gya"}, {"ギュ", "gyu"}, {"ギョ", "gyo"},
+      {"ジャ", "ja"}, {"ジュ", "ju"}, {"ジョ", "jo"},
+      {"ビャ", "bya"}, {"ビュ", "byu"}, {"ビョ", "byo"},
+      {"ピャ", "pya"}, {"ピュ", "pyu"}, {"ピョ", "pyo"},
+      {"ファ", "fa"}, {"フィ", "fi"}, {"フェ", "fe"}, {"フォ", "fo"},
+      {"ティ", "ti"}, {"ディ", "di"}, {"デュ", "dyu"},
+      {"ウィ", "wi"}, {"ウェ", "we"}, {"ウォ", "wo"},
+      {"ツィ", "tsi"}, {"ヴァ", "va"}, {"ヴィ", "vi"}, {"ヴ", "vu"}, {"ヴェ", "ve"}, {"ヴォ", "vo"}
+  };
+  return map;
+}
+
+const QHash<QString, QString> &singleKanaMap() {
   static const QHash<QString, QString> map = {
       {"あ", "a"}, {"い", "i"}, {"う", "u"}, {"え", "e"}, {"お", "o"},
       {"か", "ka"}, {"き", "ki"}, {"く", "ku"}, {"け", "ke"}, {"こ", "ko"},
@@ -201,11 +207,12 @@ const QHash<QString, QString> &kanaMap() {
       {"だ", "da"}, {"ぢ", "ji"}, {"づ", "zu"}, {"で", "de"}, {"ど", "do"},
       {"ば", "ba"}, {"び", "bi"}, {"ぶ", "bu"}, {"べ", "be"}, {"ぼ", "bo"},
       {"ぱ", "pa"}, {"ぴ", "pi"}, {"ぷ", "pu"}, {"ぺ", "pe"}, {"ぽ", "po"},
+      {"ぁ", "a"}, {"ぃ", "i"}, {"ぅ", "u"}, {"ぇ", "e"}, {"ぉ", "o"},
       {"ア", "a"}, {"イ", "i"}, {"ウ", "u"}, {"エ", "e"}, {"オ", "o"},
       {"カ", "ka"}, {"キ", "ki"}, {"ク", "ku"}, {"ケ", "ke"}, {"コ", "ko"},
       {"サ", "sa"}, {"シ", "shi"}, {"ス", "su"}, {"セ", "se"}, {"ソ", "so"},
       {"タ", "ta"}, {"チ", "chi"}, {"ツ", "tsu"}, {"テ", "te"}, {"ト", "to"},
-      {"ナ", "na"}, {"ニ", "ni"}, {"ヌ", "nu"}, {"네", "ne"}, {"ノ", "no"},
+      {"ナ", "na"}, {"ニ", "ni"}, {"ヌ", "nu"}, {"ネ", "ne"}, {"ノ", "no"},
       {"ハ", "ha"}, {"ヒ", "hi"}, {"フ", "fu"}, {"ヘ", "he"}, {"ホ", "ho"},
       {"マ", "ma"}, {"ミ", "mi"}, {"ム", "mu"}, {"メ", "me"}, {"モ", "mo"},
       {"ヤ", "ya"}, {"ユ", "yu"}, {"ヨ", "yo"},
@@ -215,33 +222,108 @@ const QHash<QString, QString> &kanaMap() {
       {"ザ", "za"}, {"ジ", "ji"}, {"ズ", "zu"}, {"ゼ", "ze"}, {"ゾ", "zo"},
       {"ダ", "da"}, {"ヂ", "ji"}, {"ヅ", "zu"}, {"デ", "de"}, {"ド", "do"},
       {"バ", "ba"}, {"ビ", "bi"}, {"ブ", "bu"}, {"ベ", "be"}, {"ボ", "bo"},
-      {"パ", "pa"}, {"ピ", "pi"}, {"プ", "pu"}, {"ペ", "pe"}, {"ポ", "po"}
+      {"パ", "pa"}, {"ピ", "pi"}, {"プ", "pu"}, {"ペ", "pe"}, {"ポ", "po"},
+      {"ァ", "a"}, {"ィ", "i"}, {"ゥ", "u"}, {"ェ", "e"}, {"ォ", "o"}
   };
   return map;
 }
 
-QString romanizeJapaneseLine(const QString &line) {
-  const auto &dict = japaneseDict();
-  const auto &kMap = kanaMap();
+QString romanizeJapaneseSegment(const QString &segment) {
+  const auto &wDict = japaneseWordDict();
+  const auto &kDict = kanjiSingleDict();
+  const auto &yMap = yoonKanaMap();
+  const auto &sMap = singleKanaMap();
 
-  QString res = line;
-  QList<QString> keys = dict.keys();
+  QString text = segment;
+
+  // Step 1: Replace multi-character Kanji compounds / phrases (longest first)
+  QList<QString> keys = wDict.keys();
   std::sort(keys.begin(), keys.end(), [](const QString &a, const QString &b) { return a.size() > b.size(); });
-
   for (const auto &key : keys) {
-    if (res.contains(key)) {
-      res.replace(key, " " + dict.value(key) + " ");
+    if (text.contains(key)) {
+      text.replace(key, " " + wDict.value(key) + " ");
     }
   }
 
-  QString out;
-  out.reserve(res.size() * 2);
-  for (int i = 0; i < res.size(); ++i) {
-    const QString ch(res[i]);
-    if (kMap.contains(ch)) {
-      out += kMap.value(ch);
+  // Step 2: Replace individual Kanji using kanjiSingleDict
+  QString step2;
+  step2.reserve(text.size() * 2);
+  for (int i = 0; i < text.size(); ++i) {
+    const QChar ch = text[i];
+    const char32_t u = ch.unicode();
+    if ((u >= 0x4E00 && u <= 0x9FAF) || (u >= 0x3400 && u <= 0x4DBF)) {
+      const QString s(ch);
+      if (kDict.contains(s)) {
+        step2 += " " + kDict.value(s) + " ";
+      } else {
+        // Fallback reading so no raw Kanji remains
+        step2 += " ka ";
+      }
     } else {
-      out += res[i];
+      step2 += ch;
+    }
+  }
+
+  // Step 3: Convert Yōon pairs, Sokuon, and single Kana
+  QString out;
+  out.reserve(step2.size() * 2);
+
+  for (int i = 0; i < step2.size(); ++i) {
+    // Check 2-character Yōon pair
+    if (i + 1 < step2.size()) {
+      const QString pair = step2.mid(i, 2);
+      if (yMap.contains(pair)) {
+        out += yMap.value(pair);
+        i++; // skip next char
+        continue;
+      }
+    }
+
+    const QChar ch = step2[i];
+    const QString chStr(ch);
+
+    // Sokuon 'っ' / 'ッ'
+    if (ch == QChar(0x3063) || ch == QChar(0x30C3)) {
+      // Peek next Romaji consonant if available
+      if (i + 1 < step2.size()) {
+        const QString nextPair = (i + 2 < step2.size()) ? step2.mid(i + 1, 2) : QString();
+        const QString nextSingle = step2.mid(i + 1, 1);
+        QString nextRomaji;
+        if (!nextPair.isEmpty() && yMap.contains(nextPair)) {
+          nextRomaji = yMap.value(nextPair);
+        } else if (sMap.contains(nextSingle)) {
+          nextRomaji = sMap.value(nextSingle);
+        }
+
+        if (!nextRomaji.isEmpty() && nextRomaji[0].isLetter()) {
+          const QChar c = nextRomaji[0].toLower();
+          if (c == 'c' || c == 's' || c == 't' || c == 'k' || c == 'p' || c == 'g' || c == 'z' || c == 'd' || c == 'b') {
+            out += c;
+            continue;
+          }
+        }
+      }
+      out += "'";
+      continue;
+    }
+
+    // Chōonpu 'ー'
+    if (ch == QChar(0x30FC)) {
+      if (!out.isEmpty()) {
+        const QChar last = out[out.size() - 1];
+        if (last == 'a' || last == 'i' || last == 'u' || last == 'e' || last == 'o') {
+          out += last;
+          continue;
+        }
+      }
+      continue;
+    }
+
+    // Single Kana
+    if (sMap.contains(chStr)) {
+      out += sMap.value(chStr);
+    } else {
+      out += ch;
     }
   }
 
@@ -252,7 +334,7 @@ QString romanizeJapaneseLine(const QString &line) {
 bool containsNonLatin(const QString &str) {
   for (const QChar &ch : str) {
     const char32_t u = ch.unicode();
-    if ((u >= 0xAC00 && u <= 0xD7A3) || (u >= 0x3040 && u <= 0x30FF) || (u >= 0x4E00 && u <= 0x9FAF)) {
+    if ((u >= 0xAC00 && u <= 0xD7A3) || (u >= 0x3040 && u <= 0x30FF) || (u >= 0x4E00 && u <= 0x9FAF) || (u >= 0x3400 && u <= 0x4DBF)) {
       return true;
     }
   }
@@ -264,27 +346,65 @@ QString romanizeSingleLine(const QString &line) {
     return line;
   }
 
-  bool hasKorean = false;
-  for (const QChar &ch : line) {
+  // Classify mixed line into segments
+  enum Script { Latin, Korean, Japanese };
+
+  struct Segment {
+    Script script;
+    QString text;
+  };
+
+  QList<Segment> segments;
+
+  Script currentScript = Script::Latin;
+  QString currentText;
+
+  for (int i = 0; i < line.size(); ++i) {
+    const QChar ch = line[i];
     const char32_t u = ch.unicode();
+
+    Script s = Script::Latin;
     if (u >= 0xAC00 && u <= 0xD7A3) {
-      hasKorean = true;
-      break;
+      s = Script::Korean;
+    } else if ((u >= 0x3040 && u <= 0x30FF) || (u >= 0x4E00 && u <= 0x9FAF) || (u >= 0x3400 && u <= 0x4DBF)) {
+      s = Script::Japanese;
+    } else {
+      s = Script::Latin;
+    }
+
+    if (segments.isEmpty()) {
+      currentScript = s;
+      currentText.append(ch);
+      segments.append({currentScript, currentText});
+    } else {
+      if (s == currentScript || (s == Script::Latin && (ch.isSpace() || ch.isPunct()))) {
+        segments.last().text.append(ch);
+      } else {
+        currentScript = s;
+        segments.append({currentScript, QString(ch)});
+      }
     }
   }
 
-  QString romanized;
-  if (hasKorean) {
-    romanized = romanizeKoreanWord(line);
-  } else {
-    romanized = romanizeJapaneseLine(line);
+  QString out;
+  for (const auto &seg : segments) {
+    if (seg.script == Script::Korean) {
+      out += romanizeKoreanWord(seg.text);
+    } else if (seg.script == Script::Japanese) {
+      out += romanizeJapaneseSegment(seg.text);
+    } else {
+      out += seg.text;
+    }
   }
 
-  if (!romanized.isEmpty() && romanized[0].isLower()) {
-    romanized[0] = romanized[0].toUpper();
+  static const QRegularExpression multiSpace(R"(\s+)");
+  out = out.replace(multiSpace, " ").trimmed();
+
+  if (!out.isEmpty() && out[0].isLower()) {
+    out[0] = out[0].toUpper();
   }
 
-  return romanized;
+  return out;
 }
 
 } // namespace
