@@ -1586,7 +1586,7 @@ void Backend::updatePreparation(){
   },directory);
 }
 
-QString Backend::localImportStatus() const {return m_scanningFolders ? QString("Scanning folders…") : QString("%1 / %2").arg(m_importDone).arg(m_importTotal);}
+QString Backend::localImportStatus() const {return m_scanningFolders ? QString("Scanning folders…") : QString("Importing %1 / %2 files…").arg(m_importDone).arg(m_importTotal);}
 void Backend::importLocalFiles(const QVariantList &urls) {
   if(importingLocal()){emit toast("An import is already running");return;}
   QSet<QString> seen;
@@ -1608,7 +1608,12 @@ void Backend::locateLocalFile(const QUrl &url,const QString &id){
 void Backend::importNextLocalBatch(){
   if(!importingLocal()||m_processes.contains("local-import"))return;
   if(m_importFiles.isEmpty()){
-    const auto message=m_scanLimited?QString("Scan limit reached. Add a smaller folder to continue.") : (m_importFailed+m_scanFailed)?QString("Import finished · %1 unreadable files or folders").arg(m_importFailed+m_scanFailed):QString("Import finished");
+    const int successCount = qMax(0, m_importDone - m_importFailed);
+    const int failCount = m_importFailed + m_scanFailed;
+    const auto message = m_scanLimited ? QString("Scan limit reached. Add a smaller folder to continue.")
+                         : failCount > 0 ? QString("Import completed · %1 files imported, %2 failed").arg(successCount).arg(failCount)
+                         : m_importTotal == 1 ? QString("Import completed · 1 file imported")
+                         : QString("Import completed · %1 files imported").arg(m_importDone);
     m_scanLimited=false;m_scanFailed=0;
     m_importTotal=0;m_relocateId.clear();emit localImportChanged();emit toast(message);return;
   }

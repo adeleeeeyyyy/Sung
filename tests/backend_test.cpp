@@ -94,6 +94,48 @@ private slots:
     b.importLocalFiles(urls);b.cancelLocalImport();QTest::qWait(150);QVERIFY(!b.importingLocal());
     b.stop();b.deletePlaylist(playlist);b.m_localTracks.clear();b.clearQueue();b.setLyricsFallback(true);b.setAutoplay(true);
   }
+  void bulkLocalAudioImport() {
+    const auto oldHelper=qgetenv("SUNG_HELPER"),oldPython=qgetenv("SUNG_PYTHON");
+    const auto helper=QFileInfo(QString::fromUtf8(qgetenv("SUNG_FIXTURE_HELPER"))).dir().absoluteFilePath("../helper/catalog.py");
+    qputenv("SUNG_HELPER",helper.toUtf8());qputenv("SUNG_PYTHON","/usr/bin/python3");
+    const auto restore=qScopeGuard([&]{qputenv("SUNG_HELPER",oldHelper);qputenv("SUNG_PYTHON",oldPython);});
+    QTemporaryDir music;
+    QVariantList urls;
+    for(const auto &name : {"batch1.wav", "batch2.flac", "batch3.mp3", "batch4.ogg", "batch5.wav"}) {
+      QProcess encode;
+      encode.start("ffmpeg", {"-nostdin", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=8000:cl=mono", "-t", "5", music.filePath(name)});
+      QVERIFY(encode.waitForFinished(10000));
+      QCOMPARE(encode.exitCode(), 0);
+      urls.append(QUrl::fromLocalFile(music.filePath(name)));
+    }
+    // Add one invalid/unsupported file to test batch fault tolerance
+    QFile corrupt(music.filePath("invalid.txt"));
+    QVERIFY(corrupt.open(QIODevice::WriteOnly));
+    corrupt.write("Not an audio file");
+    corrupt.close();
+    urls.append(QUrl::fromLocalFile(music.filePath("invalid.txt")));
+
+    Backend b; b.setVolume(0); b.m_localTracks.clear();
+    b.importLocalFiles(urls);
+    QVERIFY(b.importingLocal());
+    QTRY_VERIFY_WITH_TIMEOUT(!b.importingLocal(), 25000);
+    b.library("files");
+    QCOMPARE(b.results()->count(), 5);
+    QCOMPARE(b.m_localTracks.size(), 5);
+
+    // Duplicate import test (importing same URLs again does not duplicate items)
+    b.importLocalFiles(urls);
+    QTRY_VERIFY_WITH_TIMEOUT(!b.importingLocal(), 15000);
+    QCOMPARE(b.m_localTracks.size(), 5);
+
+    // Empty input / cancel test
+    b.importLocalFiles({});
+    QVERIFY(!b.importingLocal());
+    b.importLocalFiles(urls);
+    b.cancelLocalImport();
+    QVERIFY(!b.importingLocal());
+    b.m_localTracks.clear();
+  }
   void listeningFeatures() {
     const auto oldHelper=qgetenv("SUNG_HELPER"),oldPython=qgetenv("SUNG_PYTHON");
     qputenv("SUNG_HELPER",qgetenv("SUNG_FIXTURE_HELPER"));qputenv("SUNG_PYTHON","/usr/bin/python3");qputenv("SUNG_BUFFER_FIXTURE","1");
