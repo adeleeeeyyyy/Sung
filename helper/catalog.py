@@ -189,7 +189,7 @@ def local_files(req):
         path = Path(name).resolve()
         try:
             if path.suffix.lower() not in allowed or not path.is_file(): raise ValueError('Missing or unsupported audio file')
-            probe = subprocess.run(['ffprobe','-v','error','-protocol_whitelist','file,crypto,data','-show_entries','format=duration:format_tags=title,artist,album:stream=codec_type:stream_disposition=attached_pic','-of','json',str(path)],capture_output=True,timeout=5)
+            probe = subprocess.run(['ffprobe','-v','error','-protocol_whitelist','file,crypto,data','-show_entries','format=duration:format_tags=title,artist,album,track,disc,date,year,tracknumber,discnumber:stream=codec_type:stream_disposition=attached_pic','-of','json',str(path)],capture_output=True,timeout=5)
             if probe.returncode or len(probe.stdout)>262144: raise ValueError('Could not read audio metadata')
             data = json.loads(probe.stdout)
             if not any(stream.get('codec_type')=='audio' for stream in data.get('streams',[])): raise ValueError('No audio stream')
@@ -208,7 +208,11 @@ def local_files(req):
                         elif target.exists(): target.unlink()
                     except (OSError, subprocess.TimeoutExpired):
                         if target.exists(): target.unlink()
-            items.append(dict(id=identity,kind='song',videoId='',localPath=str(path),localStamp=f'{path.stat().st_mtime_ns}:{path.stat().st_size}',title=str(tags.get('title') or path.stem)[:512],artist=str(tags.get('artist') or '')[:512],album=str(tags.get('album') or '')[:512],seconds=round(seconds),duration=f'{int(seconds)//60}:{int(seconds)%60:02d}' if seconds else '',art=art,available=True))
+            mtime = int(path.stat().st_mtime)
+            year_val = str(tags.get('year') or tags.get('date') or '')[:32]
+            track_val = str(tags.get('track') or tags.get('tracknumber') or '')[:32]
+            disc_val = str(tags.get('disc') or tags.get('discnumber') or '')[:32]
+            items.append(dict(id=identity,kind='song',videoId='',localPath=str(path),localStamp=f'{path.stat().st_mtime_ns}:{path.stat().st_size}',mtime=mtime,title=str(tags.get('title') or path.stem)[:512],artist=str(tags.get('artist') or '')[:512],album=str(tags.get('album') or '')[:512],year=year_val,track=track_val,disc=disc_val,seconds=round(seconds),duration=f'{int(seconds)//60}:{int(seconds)%60:02d}' if seconds else '',art=art,available=True))
         except (OSError, ValueError, subprocess.TimeoutExpired):
             errors.append(path.name)
     return {'items':items,'failed':errors}

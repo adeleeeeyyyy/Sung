@@ -47,6 +47,13 @@ Backend::Backend(QObject *parent) : QObject(parent) {
   setPreservePitch(m_settings.value("preservePitch",true).toBool());
   connect(&m_media,&QMediaPlayer::playbackRateChanged,this,&Backend::settingsChanged);
   m_collection.setSourceModel(&m_results);
+  m_collection.setSortKey(m_settings.value("collectionSort", "original").toString());
+  m_collection.setSortReverse(m_settings.value("collectionSortReverse", false).toBool());
+  connect(&m_collection, &CollectionView::optionsChanged, this, [this] {
+    m_settings.setValue("collectionSort", m_collection.sortKey());
+    m_settings.setValue("collectionSortReverse", m_collection.sortReverse());
+    m_saveTimer.start();
+  });
   connect(&m_queue,&Entries::countChanged,this,[this]{
     m_queueSuffix.fill(0,m_queue.count()+1);
     for(int i=m_queue.count()-1;i>=0;--i){
@@ -1709,6 +1716,7 @@ void Backend::importNextLocalBatch(){
 void Backend::mergeLocalTrack(QVariantMap track){
   if(m_relocateId.isEmpty())for(const auto &v:m_localTracks)if(v.toMap().value("localPath")==track.value("localPath")){track["id"]=v.toMap().value("id");break;}
   if(playable({track}).isEmpty()||track.value("localPath").toString().isEmpty())return;
+  if(!track.contains("dateAdded")||track.value("dateAdded").toLongLong()<=0){track["dateAdded"]=QDateTime::currentMSecsSinceEpoch();}
   const auto id=track.value("id").toString();bool known=false;
   const auto replace=[&](QVariantList &rows){bool changed=false;for(auto &v:rows)if(itemId(v)==id){v=track;changed=true;}return changed;};
   known=replace(m_localTracks);if(!known)m_localTracks.append(track);

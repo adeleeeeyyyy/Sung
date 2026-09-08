@@ -733,6 +733,88 @@ private slots:
     QVERIFY(b.displayLyrics().isEmpty());
     b.setRomanizedLyrics(false);
   }
+  void localFilesSortingTest() {
+    Backend b;
+    auto *view = b.collection();
+
+    QVariantMap song1 = {
+        {"id", "s1"}, {"title", "Zebra"}, {"artist", "Artist B"}, {"album", "Album B"},
+        {"year", "2020"}, {"disc", "1"}, {"track", "2"}, {"seconds", 300}, {"mtime", 1000LL}, {"dateAdded", 100LL}
+    };
+    QVariantMap song2 = {
+        {"id", "s2"}, {"title", "Alpha"}, {"artist", "Artist A"}, {"album", "Album A"},
+        {"year", "2021"}, {"disc", "1"}, {"track", "1"}, {"seconds", 120}, {"mtime", 3000LL}, {"dateAdded", 200LL}
+    };
+    QVariantMap song3 = {
+        {"id", "s3"}, {"title", "Beta"}, {"artist", "Artist A"}, {"album", "Album A"},
+        {"year", "2020"}, {"disc", "1"}, {"track", "1"}, {"seconds", 240}, {"mtime", 2000LL}, {"dateAdded", 300LL}
+    };
+
+    b.m_results.assign({song1, song2, song3});
+
+    // 1. (default) / original order
+    view->setSortKey("original");
+    view->setSortReverse(false);
+    QCOMPARE(view->get(0).value("title").toString(), QString("Zebra"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Alpha"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Beta"));
+
+    // 2. Title ascending & Reverse
+    view->setSortKey("title");
+    QCOMPARE(view->get(0).value("title").toString(), QString("Alpha"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Beta"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Zebra"));
+
+    view->setSortReverse(true);
+    QCOMPARE(view->get(0).value("title").toString(), QString("Zebra"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Beta"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Alpha"));
+    view->setSortReverse(false);
+
+    // 3. Album / Track
+    view->setSortKey("album_track");
+    QCOMPARE(view->get(0).value("title").toString(), QString("Alpha"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Beta"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Zebra"));
+
+    // 4. Year / Album / Track
+    view->setSortKey("year_album_track");
+    QCOMPARE(view->get(0).value("title").toString(), QString("Beta"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Zebra"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Alpha"));
+
+    // 5. Artist / Year / Album / Track
+    view->setSortKey("artist_year_album_track");
+    QCOMPARE(view->get(0).value("title").toString(), QString("Beta"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Alpha"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Zebra"));
+
+    // 6. Last Modified Date
+    view->setSortKey("last_modified");
+    QCOMPARE(view->get(0).value("title").toString(), QString("Zebra"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Beta"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Alpha"));
+
+    // 7. Date Added
+    view->setSortKey("date_added");
+    QCOMPARE(view->get(0).value("title").toString(), QString("Zebra"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Alpha"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Beta"));
+
+    // 8. Duration
+    view->setSortKey("duration");
+    QCOMPARE(view->get(0).value("title").toString(), QString("Alpha"));
+    QCOMPARE(view->get(1).value("title").toString(), QString("Beta"));
+    QCOMPARE(view->get(2).value("title").toString(), QString("Zebra"));
+
+    // 9. Shuffle
+    view->setSortKey("shuffle");
+    QCOMPARE(view->count(), 3);
+
+    // Reset
+    view->setSortKey("original");
+    view->setSortReverse(false);
+  }
 };
 QTEST_MAIN(BackendTest)
 #include "backend_test.moc"

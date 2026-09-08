@@ -308,7 +308,7 @@ ApplicationWindow {
                                 Accessible.name: "Find songs in this list"
                             }
                             MButton { symbol: "close"; tip: "Clear list filter"; visible: !!app.collection.query; onClicked: app.collection.query="" }
-                            MButton { objectName: "collectionSortButton"; symbol: "sort"; tip: "Sort songs"; text: app.collection.sortKey==="original"?"Order":app.collection.sortKey==="title"?"Title":app.collection.sortKey==="artist"?"Artist":"Duration"; tonal: true; onClicked: collectionSortMenu.popup(this,width-collectionSortMenu.width,height+4) }
+                            MButton { objectName: "collectionSortButton"; symbol: "sort"; tip: "Sort songs"; text: (app.collection.sortKey==="original"||app.collection.sortKey==="default"?"(default)":app.collection.sortKey==="none"?"(none)":app.collection.sortKey==="displayed_text"?"displayed text":app.collection.sortKey==="title"?"title":app.collection.sortKey==="album"?"album":app.collection.sortKey==="album_track"?"album/track no":app.collection.sortKey==="year_album"?"year/album":app.collection.sortKey==="year_album_track"?"year/album/track no":app.collection.sortKey==="artist_year_album"?"artist/year/album":app.collection.sortKey==="artist_year_album_track"?"artist/year/album/track no":app.collection.sortKey==="last_modified"?"last modified":app.collection.sortKey==="date_added"?"date added":app.collection.sortKey==="duration"?"duration":app.collection.sortKey==="shuffle"?"shuffle":"(default)") + (app.collection.sortReverse ? " ▾" : ""); tonal: true; onClicked: collectionSortMenu.popup(this,width-collectionSortMenu.width,height+4) }
                         }
                         SelectionBar { Layout.fillWidth: true; view: tracks; canRemove: !!window.localPlaylist }
                         Item {
@@ -722,8 +722,31 @@ ApplicationWindow {
     }
     MMenu {
         id: collectionSortMenu; objectName: "collectionSortMenu"
+        MMenuItem {
+            objectName: "sort_reverse"
+            text: "Reverse Order"
+            checkable: true
+            checked: app.collection.sortReverse
+            onTriggered: app.collection.sortReverse = !app.collection.sortReverse
+        }
+        MDivider {}
         Repeater {
-            model: [{key:"original",label:"Original order"},{key:"title",label:"Title"},{key:"artist",label:"Artist"},{key:"duration",label:"Duration"}]
+            model: [
+                {key:"original", label:"(default)"},
+                {key:"none", label:"(none)"},
+                {key:"displayed_text", label:"displayed text"},
+                {key:"title", label:"title"},
+                {key:"album", label:"album"},
+                {key:"album_track", label:"album/track no"},
+                {key:"year_album", label:"year/album"},
+                {key:"year_album_track", label:"year/album/track no"},
+                {key:"artist_year_album", label:"artist/year/album"},
+                {key:"artist_year_album_track", label:"artist/year/album/track no"},
+                {key:"last_modified", label:"last modified date"},
+                {key:"date_added", label:"date added to the list"},
+                {key:"duration", label:"duration"},
+                {key:"shuffle", label:"shuffle"}
+            ]
             MMenuItem { required property var modelData; objectName: "sort_"+modelData.key; text: modelData.label; checkable: true; checked: app.collection.sortKey===modelData.key; onTriggered: app.collection.sortKey=modelData.key }
         }
     }
