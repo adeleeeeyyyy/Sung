@@ -18,6 +18,12 @@ Window {
     Shortcut { sequence: "Escape"; onActivated: mini.restoreRequested() }
     Shortcut { sequence: "Ctrl+Q"; onActivated: Qt.quit() }
     Shortcut { sequence: "Space"; onActivated: app.toggle() }
+    Shortcut { sequence: "MediaPlay"; onActivated: app.play() }
+    Shortcut { sequence: "MediaPause"; onActivated: app.pause() }
+    Shortcut { sequence: "MediaTogglePlay"; onActivated: app.toggle() }
+    Shortcut { sequence: "MediaNext"; onActivated: app.next() }
+    Shortcut { sequence: "MediaPrevious"; onActivated: app.previous() }
+    Shortcut { sequence: "MediaStop"; onActivated: app.stop() }
     Shortcut { sequence: "Ctrl+Right"; onActivated: app.next() }
     Shortcut { sequence: "Ctrl+Left"; onActivated: app.previous() }
     Rectangle {

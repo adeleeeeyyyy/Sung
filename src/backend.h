@@ -164,6 +164,7 @@ public:
     return m_media.playbackState() == QMediaPlayer::PlayingState;
   }
   bool resolving() const { return m_resolving; }
+  bool wantPlay() const { return m_wantPlay; }
   qint64 position() const { return m_media.source().isEmpty() ? m_savedPosition : m_media.position(); }
   qint64 duration() const {
     return m_media.duration() > 0

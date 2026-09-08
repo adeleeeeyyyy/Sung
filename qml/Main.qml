@@ -111,6 +111,12 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+K"; enabled: !window.modalOpen; onActivated: window.focusSearch() }
     Shortcut { sequence: "Ctrl+F"; enabled: !window.modalOpen; onActivated: window.focusSearch() }
     Shortcut { sequence: "Space"; enabled: !window.searchFocused && !window.modalOpen && (!window.activeFocusItem || window.activeFocusItem===content); onActivated: app.toggle() }
+    Shortcut { sequence: "MediaPlay"; enabled: !window.modalOpen; onActivated: app.play() }
+    Shortcut { sequence: "MediaPause"; enabled: !window.modalOpen; onActivated: app.pause() }
+    Shortcut { sequence: "MediaTogglePlay"; enabled: !window.modalOpen; onActivated: app.toggle() }
+    Shortcut { sequence: "MediaNext"; enabled: !window.modalOpen; onActivated: app.next() }
+    Shortcut { sequence: "MediaPrevious"; enabled: !window.modalOpen; onActivated: app.previous() }
+    Shortcut { sequence: "MediaStop"; enabled: !window.modalOpen; onActivated: app.stop() }
     Shortcut { sequence: "Ctrl+Right"; enabled: !window.modalOpen; onActivated: app.next() }
     Shortcut { sequence: "Ctrl+Left"; enabled: !window.modalOpen; onActivated: app.previous() }
     Shortcut { sequence: "Right"; enabled: !window.searchFocused && !collectionSearch.activeFocus && !window.modalOpen && !window.sliderFocused; onActivated: app.seek(app.position+10000) }

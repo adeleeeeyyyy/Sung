@@ -49,9 +49,9 @@ class PlayerAdaptor : public QDBusAbstractAdaptor {
 public:
   explicit PlayerAdaptor(Backend *);
   QString status() const {
-    return b->playing()             ? "Playing"
-           : b->stopped() || b->current().isEmpty() ? "Stopped"
-                                    : "Paused";
+    return (b->playing() || (b->resolving() && b->wantPlay())) ? "Playing"
+           : b->stopped() || b->current().isEmpty()            ? "Stopped"
+                                                               : "Paused";
   }
   QString loop() const {
     return b->repeat() == 2 ? "Track" : b->repeat() == 1 ? "Playlist" : "None";

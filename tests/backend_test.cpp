@@ -206,6 +206,8 @@ private slots:
     QCOMPARE(suggestLoveYo.first().toMap().value("title").toString(), QString("Love Yourself"));
 
     b.removeQueueRows({0,1,2,3,4,5,6,7,8});QCOMPARE(b.currentIndex(),-1);QCOMPARE(b.queue()->count(),0);b.undo();
+    b.playAt(0);QVERIFY(b.wantPlay());
+    b.pause();QVERIFY(!b.wantPlay());QVERIFY(!b.playing());
     b.deletePlaylist(id);b.clearQueue();
   }
   void selectionTracksModelChanges() {

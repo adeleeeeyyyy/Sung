@@ -138,11 +138,25 @@ int main(int argc, char **argv) {
   QObject::connect(&server, &QLocalServer::newConnection, &app, [&] {
     auto socket = server.nextPendingConnection();
     QObject::connect(socket, &QLocalSocket::readyRead, &backend, [&, socket] {
-      auto v = QString::fromUtf8(socket->readAll());
-      if (v.startsWith("https://"))
+      const auto v = QString::fromUtf8(socket->readAll()).trimmed();
+      if (v.startsWith("https://") || v.startsWith("http://"))
         backend.openLink(v);
-      if(v=="--mini")QMetaObject::invokeMethod(window,"openMiniPlayer");
-      else emit backend.raiseRequested();
+      else if (v == "pause")
+        backend.pause();
+      else if (v == "play")
+        backend.play();
+      else if (v == "toggle" || v == "play-pause")
+        backend.toggle();
+      else if (v == "stop")
+        backend.stop();
+      else if (v == "next")
+        backend.next();
+      else if (v == "previous" || v == "prev")
+        backend.previous();
+      else if (v == "--mini")
+        QMetaObject::invokeMethod(window, "openMiniPlayer");
+      else
+        emit backend.raiseRequested();
       socket->disconnectFromServer();
     });
     QObject::connect(socket, &QLocalSocket::disconnected, socket,

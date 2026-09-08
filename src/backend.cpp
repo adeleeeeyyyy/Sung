@@ -721,9 +721,9 @@ void Backend::pause() {
     cancel("play");
     cancel("radio");
     m_resolving = false;
-    emit playbackChanged();
   }
   m_media.pause();
+  emit playbackChanged();
 }
 void Backend::stop() {
   if(m_sleepAtEnd)setSleep(0);
