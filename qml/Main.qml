@@ -651,6 +651,7 @@ ApplicationWindow {
                 SungText { text: "Appearance"; font.pixelSize: 16; font.weight: Font.Medium }
                 RowLayout { spacing: 8; Repeater { model: ["system","light","dark"]; MButton { required property string modelData; text: modelData==="system" && desktopTheme.available?"Noctalia":modelData.charAt(0).toUpperCase()+modelData.slice(1); selected: app.theme===modelData; onClicked: app.theme=modelData } } }
                 MSwitch { text: "Animations"; checked: app.motion; onToggled: app.motion=checked; palette.windowText: Theme.text; palette.highlight: Theme.primary }
+                MSwitch { objectName: "dynamicAlbumColorsSwitch"; text: "Dynamic album colors"; checked: app.dynamicAlbumColors; onToggled: app.dynamicAlbumColors=checked; palette.windowText: Theme.text; palette.highlight: Theme.primary }
                 MSwitch { text: "Autoplay similar songs"; checked: app.autoplay; onToggled: app.autoplay=checked; palette.windowText: Theme.text; palette.highlight: Theme.primary }
                 MSwitch { objectName: "historyPauseSwitch"; text: "Pause history this session"; checked: app.historyPaused; onToggled: app.historyPaused=checked }
                 MSwitch { objectName: "trackNotificationsSwitch"; text: "Track notifications"; checked: app.trackNotifications; onToggled: app.trackNotifications=checked }
@@ -661,6 +662,7 @@ ApplicationWindow {
                 MButton { objectName: "audioDeviceButton"; text: app.audioDeviceName; symbol: "volume"; tip: "Audio output"; tonal: true; Layout.fillWidth: true; leftAligned: true; onClicked: audioDeviceDialog.open() }
                 MSwitch { text: "Prepare next track"; checked: app.prepareNext; onToggled: app.prepareNext=checked }
                 MSwitch { text: "Find missing lyrics on LRCLIB"; checked: app.lyricsFallback; onToggled: app.lyricsFallback=checked }
+                MSwitch { objectName: "romanizedLyricsSettingSwitch"; text: "Romanized lyrics"; checked: app.romanizedLyrics; onToggled: app.romanizedLyrics=checked }
                 SungText { text: "YouTube"; font.pixelSize: 16; font.weight: Font.Medium; Layout.topMargin: 8 }
                 MButton { text: app.cookies?"Replace cookies":"Import cookies"; symbol: "folder"; tonal: true; onClicked: window.openFileDialog("cookies") }
                 MButton { text: "Remove cookies"; visible: !!app.cookies; onClicked: app.clearCookies() }
@@ -794,6 +796,7 @@ ApplicationWindow {
                 MButton { text: "Use automatic"; visible: app.lyricsSource==="Imported LRC"; onClicked: app.resetLyrics() }
             }
             MSwitch { objectName: "completedLyricsSwitch"; text: "Show completed lines"; checked: app.keepCompletedLyrics; onToggled: app.keepCompletedLyrics=checked; Layout.fillWidth: true }
+            MSwitch { objectName: "romanizedLyricsSwitch"; text: "Romanized lyrics"; checked: app.romanizedLyrics; onToggled: app.romanizedLyrics=checked; Layout.fillWidth: true }
             SungText { text: (app.lyricOffset>0?"+":"")+(app.lyricOffset/1000).toFixed(2)+" s"; font.pixelSize: 28; Layout.alignment: Qt.AlignHCenter }
             SettingSlider { objectName: "lyricTimingSlider"; from: -10000; to: 10000; stepSize: 250; value: app.lyricOffset; Layout.fillWidth: true; onMoved: app.lyricOffset=value; Accessible.name: "Lyric timing; positive shows lyrics earlier" }
             RowLayout {

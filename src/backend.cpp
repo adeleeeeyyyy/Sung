@@ -1,6 +1,10 @@
 #include "backend.h"
+#include "roundedart.h"
 #include "lrc.h"
+#include "romanizer.h"
+#include <QBuffer>
 #include <QClipboard>
+#include <QImageReader>
 #include <QSet>
 #include <cmath>
 #include <algorithm>
@@ -52,6 +56,7 @@ Backend::Backend(QObject *parent) : QObject(parent) {
     emit queueInfoChanged();
   });
   connect(this,&Backend::trackChanged,this,&Backend::queueInfoChanged);
+  connect(this,&Backend::trackChanged,this,&Backend::updateAlbumColors);
   connect(this,&Backend::positionChanged,this,&Backend::queueInfoChanged);
   connect(this,&Backend::playbackChanged,this,&Backend::queueInfoChanged);
   connect(this,&Backend::settingsChanged,this,&Backend::queueInfoChanged);
@@ -772,8 +777,15 @@ void Backend::applyLyrics(const QVariantMap &data) {
   m_lyricsBusy=false;m_lyricsLoaded=data.value("ok").toBool();
   m_lyricLines=data.contains("lrc")?Lrc::parse(data.value("lrc").toString(),duration()):data.value("lines").toList();
   m_lyrics=m_lyricLines.isEmpty()?data.value("lyrics").toString():Lrc::plain(m_lyricLines);
+  m_romanizedLyricLines=Romanizer::romanizeLines(m_lyricLines);
+  m_romanizedLyrics=Romanizer::romanizeText(m_lyrics);
   m_lyricsSource=m_lyrics.isEmpty()?QString():data.value("source","YouTube").toString();
   emit positionChanged();emit lyricsChanged();
+}
+void Backend::setRomanizedLyrics(bool enabled) {
+  m_settings.setValue("romanizedLyrics", enabled);
+  emit settingsChanged();
+  emit lyricsChanged();
 }
 void Backend::fetchLyrics() {
   if(current().isEmpty()||m_lyricsBusy||m_lyricsLoaded)return;
@@ -931,6 +943,7 @@ void Backend::clearCache() {
       QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/art";
   QDir(p).removeRecursively();
   m_streams.clear();
+  m_paletteCache.clear();
   emit artworkCacheCleared();
   emit toast("Cache cleared");
 }
@@ -1228,7 +1241,7 @@ void Backend::invalidateUndo(const QString &type) {
   m_undoType.clear();m_undoRows.clear();m_undoLastPlayed.clear();m_undoMessage.clear();emit libraryChanged();
 }
 void Backend::clearLyrics() {
-  cancel("lyrics");m_lyricsLoaded=false;m_lyricsSource.clear();m_lyrics.clear();m_lyricLines.clear();m_lyricsBusy=false;emit lyricsChanged();
+  cancel("lyrics");m_lyricsLoaded=false;m_lyricsSource.clear();m_lyrics.clear();m_lyricLines.clear();m_romanizedLyrics.clear();m_romanizedLyricLines.clear();m_lyricsBusy=false;emit lyricsChanged();
 }
 void Backend::saveQueue(const QString &name) {
   if(m_queue.count()==0)return;
@@ -1791,4 +1804,208 @@ void Backend::applyPlaylistCleanup(bool duplicates,bool missing){
     }
     closePlaylistCleanup();emit toast("Playlist no longer exists");
   });
+}
+
+void Backend::setDynamicAlbumColors(bool enabled) {
+  if (dynamicAlbumColors() == enabled) return;
+  m_settings.setValue("dynamicAlbumColors", enabled);
+  emit settingsChanged();
+  updateAlbumColors();
+}
+
+void Backend::updateAlbumColors() {
+  if (!dynamicAlbumColors()) {
+    if (m_hasAlbumColors) {
+      m_hasAlbumColors = false;
+      m_albumColors.clear();
+      emit albumColorsChanged();
+    }
+    return;
+  }
+
+  const QString coverUrl = cover();
+  if (coverUrl.isEmpty()) {
+    if (m_hasAlbumColors) {
+      m_hasAlbumColors = false;
+      m_albumColors.clear();
+      emit albumColorsChanged();
+    }
+    return;
+  }
+
+  if (m_paletteCache.contains(coverUrl)) {
+    const auto palette = m_paletteCache.value(coverUrl);
+    if (!palette.isEmpty()) {
+      m_albumColors = palette;
+      m_hasAlbumColors = true;
+      emit albumColorsChanged();
+      return;
+    }
+  }
+
+  QImage img = RoundedArt::getCachedImage(QUrl(coverUrl));
+  if (img.isNull()) {
+    const QUrl url(coverUrl);
+    if (url.isLocalFile()) {
+      img.load(url.toLocalFile());
+    } else if (QFile::exists(coverUrl)) {
+      img.load(coverUrl);
+    }
+  }
+
+  if (!img.isNull()) {
+    QVariantMap newPalette = extractMaterialPalette(img);
+    if (!newPalette.isEmpty()) {
+      m_paletteCache.insert(coverUrl, newPalette);
+      m_albumColors = newPalette;
+      m_hasAlbumColors = true;
+    } else {
+      m_hasAlbumColors = false;
+      m_albumColors.clear();
+    }
+    emit albumColorsChanged();
+    return;
+  }
+
+  const QUrl url(coverUrl);
+  if (url.scheme() == "http" || url.scheme() == "https") {
+    QNetworkRequest req(url);
+    req.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
+    auto *net = RoundedArt::networkManager();
+    if (net) {
+      auto *reply = net->get(req);
+      connect(reply, &QNetworkReply::finished, this, [this, reply, coverUrl] {
+        reply->deleteLater();
+        if (!dynamicAlbumColors()) return;
+        if (cover() != coverUrl) return;
+        if (reply->error() == QNetworkReply::NoError) {
+          auto bytes = reply->readAll();
+          QBuffer buffer(&bytes);
+          buffer.open(QIODevice::ReadOnly);
+          QImageReader reader(&buffer);
+          reader.setAutoTransform(true);
+          QImage fetched = reader.read();
+          if (!fetched.isNull()) {
+            QVariantMap newPalette = extractMaterialPalette(fetched);
+            if (!newPalette.isEmpty()) {
+              m_paletteCache.insert(coverUrl, newPalette);
+              m_albumColors = newPalette;
+              m_hasAlbumColors = true;
+              emit albumColorsChanged();
+            }
+          }
+        }
+      });
+    }
+  }
+}
+
+QVariantMap Backend::extractMaterialPalette(const QImage &img) {
+  if (img.isNull()) return {};
+
+  QImage small = img.scaled(36, 36, Qt::IgnoreAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_ARGB32);
+
+  int hueBins[12] = {0};
+  double satBins[12] = {0.0};
+  double valBins[12] = {0.0};
+  int totalCount = 0;
+
+  for (int y = 0; y < small.height(); ++y) {
+    const QRgb *scan = reinterpret_cast<const QRgb*>(small.constScanLine(y));
+    for (int x = 0; x < small.width(); ++x) {
+      QColor c(scan[x]);
+      if (c.alpha() < 128) continue;
+      float h = 0.0f, s = 0.0f, l = 0.0f;
+      c.getHslF(&h, &s, &l);
+
+      if (s > 0.12f && l > 0.10f && l < 0.90f) {
+        int bin = qBound(0, static_cast<int>(h * 12.0f), 11);
+        hueBins[bin]++;
+        satBins[bin] += s;
+        valBins[bin] += l;
+        totalCount++;
+      }
+    }
+  }
+
+  float seedH = 0.60f;
+  float seedS = 0.40f;
+  float seedL = 0.50f;
+
+  if (totalCount > 0) {
+    int bestBin = 0;
+    double maxScore = -1.0;
+    for (int i = 0; i < 12; ++i) {
+      double score = hueBins[i] * (satBins[i] / qMax(1, hueBins[i]));
+      if (score > maxScore) {
+        maxScore = score;
+        bestBin = i;
+      }
+    }
+    if (hueBins[bestBin] > 0) {
+      seedH = static_cast<float>((bestBin + 0.5) / 12.0);
+      seedS = static_cast<float>(qBound(0.25, satBins[bestBin] / hueBins[bestBin], 0.85));
+      seedL = static_cast<float>(qBound(0.35, valBins[bestBin] / hueBins[bestBin], 0.65));
+    }
+  } else {
+    qint64 rSum = 0, gSum = 0, bSum = 0, count = 0;
+    for (int y = 0; y < small.height(); ++y) {
+      const QRgb *scan = reinterpret_cast<const QRgb*>(small.constScanLine(y));
+      for (int x = 0; x < small.width(); ++x) {
+        QColor c(scan[x]);
+        if (c.alpha() >= 128) {
+          rSum += c.red();
+          gSum += c.green();
+          bSum += c.blue();
+          count++;
+        }
+      }
+    }
+    if (count > 0) {
+      QColor avgC(rSum / count, gSum / count, bSum / count);
+      avgC.getHslF(&seedH, &seedS, &seedL);
+    }
+  }
+
+  qreal secH = std::fmod(seedH + 0.04, 1.0);
+
+  auto hslHex = [](qreal h, qreal s, qreal l) -> QString {
+    h = std::fmod(h + 1.0, 1.0);
+    s = qBound(0.0, s, 1.0);
+    l = qBound(0.0, l, 1.0);
+    return QColor::fromHslF(h, s, l).name();
+  };
+
+  QVariantMap darkRoleMap;
+  darkRoleMap["primary"] = hslHex(seedH, qMin(1.0, seedS * 1.2 + 0.1), 0.78);
+  darkRoleMap["primaryText"] = hslHex(seedH, 0.20, 0.10);
+  darkRoleMap["primaryContainer"] = hslHex(seedH, seedS, 0.26);
+  darkRoleMap["containerText"] = hslHex(seedH, qMin(1.0, seedS * 1.1), 0.88);
+  darkRoleMap["secondary"] = hslHex(secH, seedS * 0.6, 0.72);
+  darkRoleMap["background"] = hslHex(seedH, qMin(0.20, seedS * 0.25), 0.08);
+  darkRoleMap["surface"] = hslHex(seedH, qMin(0.20, seedS * 0.25), 0.11);
+  darkRoleMap["container"] = hslHex(seedH, qMin(0.25, seedS * 0.30), 0.15);
+  darkRoleMap["high"] = hslHex(seedH, qMin(0.30, seedS * 0.35), 0.20);
+  darkRoleMap["text"] = hslHex(seedH, 0.10, 0.94);
+  darkRoleMap["muted"] = hslHex(seedH, qMin(0.20, seedS * 0.25), 0.68);
+  darkRoleMap["outline"] = hslHex(seedH, qMin(0.20, seedS * 0.25), 0.30);
+
+  QVariantMap lightRoleMap;
+  lightRoleMap["primary"] = hslHex(seedH, qMin(1.0, seedS * 1.1 + 0.1), 0.40);
+  lightRoleMap["primaryText"] = hslHex(seedH, 0.20, 0.98);
+  lightRoleMap["primaryContainer"] = hslHex(seedH, qMin(0.60, seedS * 0.7), 0.88);
+  lightRoleMap["containerText"] = hslHex(seedH, seedS, 0.16);
+  lightRoleMap["secondary"] = hslHex(secH, seedS * 0.6, 0.45);
+  lightRoleMap["background"] = hslHex(seedH, qMin(0.12, seedS * 0.15), 0.98);
+  lightRoleMap["surface"] = hslHex(seedH, qMin(0.12, seedS * 0.15), 0.95);
+  lightRoleMap["container"] = hslHex(seedH, qMin(0.15, seedS * 0.20), 0.90);
+  lightRoleMap["high"] = hslHex(seedH, qMin(0.18, seedS * 0.25), 0.84);
+  lightRoleMap["text"] = hslHex(seedH, 0.10, 0.10);
+  lightRoleMap["muted"] = hslHex(seedH, qMin(0.15, seedS * 0.20), 0.40);
+  lightRoleMap["outline"] = hslHex(seedH, qMin(0.15, seedS * 0.20), 0.78);
+
+  QVariantMap res;
+  res["dark"] = darkRoleMap;
+  res["light"] = lightRoleMap;
+  return res;
 }

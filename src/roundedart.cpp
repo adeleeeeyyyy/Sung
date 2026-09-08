@@ -135,3 +135,18 @@ void RoundedArt::paint(QPainter *p) {
 }
 
 void RoundedArt::clearCaches() { cache.clear(); if(manager()->cache())manager()->cache()->clear(); }
+
+QImage RoundedArt::getCachedImage(const QUrl &url) {
+  if (url.isEmpty()) return {};
+  for (int p : {360, 200, 120, 480, 80}) {
+    const auto key = url.toString() + QLatin1Char('|') + QString::number(p);
+    if (auto img = cache.object(key)) {
+      return *img;
+    }
+  }
+  return {};
+}
+
+QNetworkAccessManager *RoundedArt::networkManager() {
+  return manager();
+}

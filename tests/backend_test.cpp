@@ -1,5 +1,6 @@
 #include "backend.h"
 #include "lrc.h"
+#include "romanizer.h"
 #include <QStandardPaths>
 #include <QDateTime>
 #include "rowselection.h"
@@ -611,6 +612,109 @@ private slots:
     b.back();
     QCOMPARE(b.page(), "library");
     b.deletePlaylist(id);
+  }
+  void dynamicAlbumColorsTest() {
+    Backend b;
+    QVERIFY(b.dynamicAlbumColors());
+    QSignalSpy spySettings(&b, &Backend::settingsChanged);
+    QSignalSpy spyColors(&b, &Backend::albumColorsChanged);
+
+    b.setDynamicAlbumColors(false);
+    QCOMPARE(spySettings.count(), 1);
+    QVERIFY(!b.dynamicAlbumColors());
+    QVERIFY(!b.hasAlbumColors());
+
+    b.setDynamicAlbumColors(true);
+    QCOMPARE(spySettings.count(), 2);
+    QVERIFY(b.dynamicAlbumColors());
+
+    QImage img(100, 100, QImage::Format_ARGB32);
+    img.fill(QColor("#2196F3")); // vibrant blue
+
+    const auto palette = Backend::extractMaterialPalette(img);
+    QVERIFY(!palette.isEmpty());
+    QVERIFY(palette.contains("dark"));
+    QVERIFY(palette.contains("light"));
+
+    const auto dark = palette.value("dark").toMap();
+    const auto light = palette.value("light").toMap();
+
+    const QStringList roles = {"primary", "primaryText", "primaryContainer", "containerText",
+                              "secondary", "background", "surface", "container",
+                              "high", "text", "muted", "outline"};
+    for (const auto &role : roles) {
+      QVERIFY(dark.contains(role));
+      QVERIFY(dark.value(role).toString().startsWith("#"));
+      QVERIFY(light.contains(role));
+      QVERIFY(light.value(role).toString().startsWith("#"));
+    }
+
+    // Verify local cover artwork file updating
+    QTemporaryDir temp;
+    const QString imgPath = temp.filePath("test_cover.png");
+    img.save(imgPath);
+
+    b.m_paletteCache.clear();
+    b.updateAlbumColors(); // no cover, should clear album colors
+    QVERIFY(!b.hasAlbumColors());
+
+    // Populate a test track with cover URL
+    QVariantMap item;
+    item["id"] = "test_track_1";
+    item["title"] = "Test Cover Song";
+    item["art"] = QUrl::fromLocalFile(imgPath).toString();
+    item["cover"] = item["art"].toString();
+    b.m_queue.assign({item});
+    b.playAt(0);
+
+    QTRY_VERIFY(b.hasAlbumColors());
+    QVERIFY(b.m_paletteCache.contains(item["cover"].toString()));
+    QCOMPARE(b.albumColors().value("dark").toMap().value("primary").toString(), dark.value("primary").toString());
+
+    b.clearCache();
+    QVERIFY(b.m_paletteCache.isEmpty());
+    b.stop();
+  }
+  void romanizedLyricsTest() {
+    QCOMPARE(Romanizer::romanizeText("ありがとう"), QString("Arigatou"));
+    QCOMPARE(Romanizer::romanizeText("愛してる"), QString("Aishiteru"));
+    QCOMPARE(Romanizer::romanizeText("사랑해"), QString("Saranghae"));
+    QCOMPARE(Romanizer::romanizeText("I love you"), QString("I love you"));
+    QCOMPARE(Romanizer::romanizeText("I love you 君が好き"), QString("I love you kimi ga suki"));
+
+    Backend b;
+    b.setRomanizedLyrics(false);
+    QVERIFY(!b.romanizedLyrics());
+
+    QVariantMap lyricData;
+    lyricData["ok"] = true;
+    lyricData["lrc"] = "[00:01.00] 君が好き\n[00:05.00] 사랑해\n[00:10.00] I love you";
+
+    b.applyLyrics(lyricData);
+    QCOMPARE(b.lyricLines().size(), 3);
+    QCOMPARE(b.displayLyricLines().size(), 3);
+
+    QCOMPARE(b.displayLyricLines()[0].toMap().value("text").toString(), QString("君が好き"));
+    QCOMPARE(b.displayLyricLines()[1].toMap().value("text").toString(), QString("사랑해"));
+    QCOMPARE(b.displayLyricLines()[2].toMap().value("text").toString(), QString("I love you"));
+
+    b.setRomanizedLyrics(true);
+    QVERIFY(b.romanizedLyrics());
+
+    QCOMPARE(b.lyricLines()[0].toMap().value("text").toString(), QString("君が好き"));
+    QCOMPARE(b.lyricLines()[1].toMap().value("text").toString(), QString("사랑해"));
+
+    QCOMPARE(b.displayLyricLines()[0].toMap().value("start").toLongLong(), 1000LL);
+    QCOMPARE(b.displayLyricLines()[0].toMap().value("text").toString(), QString("Kimi ga suki"));
+    QCOMPARE(b.displayLyricLines()[1].toMap().value("start").toLongLong(), 5000LL);
+    QCOMPARE(b.displayLyricLines()[1].toMap().value("text").toString(), QString("Saranghae"));
+    QCOMPARE(b.displayLyricLines()[2].toMap().value("start").toLongLong(), 10000LL);
+    QCOMPARE(b.displayLyricLines()[2].toMap().value("text").toString(), QString("I love you"));
+
+    b.clearLyrics();
+    QVERIFY(b.displayLyricLines().isEmpty());
+    QVERIFY(b.displayLyrics().isEmpty());
+    b.setRomanizedLyrics(false);
   }
 };
 QTEST_MAIN(BackendTest)

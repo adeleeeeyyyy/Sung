@@ -101,9 +101,12 @@ class Backend : public QObject {
   Q_PROPERTY(QString sleepStatus READ sleepLabel NOTIFY settingsChanged)
   Q_PROPERTY(bool prepareNext READ prepareNext WRITE setPrepareNext NOTIFY settingsChanged)
   Q_PROPERTY(bool lyricsFallback READ lyricsFallback WRITE setLyricsFallback NOTIFY settingsChanged)
+  Q_PROPERTY(bool romanizedLyrics READ romanizedLyrics WRITE setRomanizedLyrics NOTIFY settingsChanged)
   Q_PROPERTY(QString lyricsSource READ lyricsSource NOTIFY lyricsChanged)
   Q_PROPERTY(QString lyrics READ lyrics NOTIFY lyricsChanged)
   Q_PROPERTY(QVariantList lyricLines READ lyricLines NOTIFY lyricsChanged)
+  Q_PROPERTY(QVariantList displayLyricLines READ displayLyricLines NOTIFY lyricsChanged)
+  Q_PROPERTY(QString displayLyrics READ displayLyrics NOTIFY lyricsChanged)
   Q_PROPERTY(int lyricIndex READ lyricIndex NOTIFY lyricIndexChanged)
   Q_PROPERTY(bool lyricsBusy READ lyricsBusy NOTIFY lyricsChanged)
   Q_PROPERTY(QVariantList playlists READ playlists NOTIFY libraryChanged)
@@ -112,6 +115,9 @@ class Backend : public QObject {
   Q_PROPERTY(bool liked READ liked NOTIFY libraryChanged)
   Q_PROPERTY(QString cookies READ cookies NOTIFY settingsChanged)
   Q_PROPERTY(QStringList musicFolders READ musicFolders NOTIFY libraryChanged)
+  Q_PROPERTY(bool dynamicAlbumColors READ dynamicAlbumColors WRITE setDynamicAlbumColors NOTIFY settingsChanged)
+  Q_PROPERTY(QVariantMap albumColors READ albumColors NOTIFY albumColorsChanged)
+  Q_PROPERTY(bool hasAlbumColors READ hasAlbumColors NOTIFY albumColorsChanged)
   Q_PROPERTY(bool cleanupBusy READ cleanupBusy NOTIFY cleanupChanged)
   Q_PROPERTY(QVariantList cleanupItems READ cleanupItems NOTIFY cleanupChanged)
 public:
@@ -153,7 +159,14 @@ public:
   Q_INVOKABLE void undo();
   Q_INVOKABLE void startSearch();
   QString title() const { return m_title; }
-  QString cover() const { return m_cover; }
+  QString cover() const {
+    const auto cur = current();
+    const QString art = cur.value("art").toString();
+    if (!art.isEmpty()) return art;
+    const QString cov = cur.value("cover").toString();
+    if (!cov.isEmpty()) return cov;
+    return m_cover;
+  }
   bool busy() const { return m_busy; }
   bool canBack() const { return !m_back.isEmpty(); }
   bool canMore() const { return m_more; }
@@ -206,6 +219,12 @@ public:
   void setVolumeStep(int percent);
   QString theme() const { return m_settings.value("theme", "system").toString(); }
   void setTheme(const QString &);
+  bool dynamicAlbumColors() const { return m_settings.value("dynamicAlbumColors", true).toBool(); }
+  void setDynamicAlbumColors(bool enabled);
+  QVariantMap albumColors() const { return m_albumColors; }
+  bool hasAlbumColors() const { return m_hasAlbumColors; }
+  void updateAlbumColors();
+  static QVariantMap extractMaterialPalette(const QImage &img);
   QString cookies() const { return m_settings.value("cookies").toString(); }
   bool prepareNext() const {return m_settings.value("prepareNext",true).toBool();}
   void setPrepareNext(bool enabled);
@@ -215,8 +234,12 @@ public:
   Q_INVOKABLE void importLyrics(const QUrl &url, const QString &songId);
   Q_INVOKABLE void resetLyrics();
   Q_INVOKABLE void reloadLyrics();
+  bool romanizedLyrics() const { return m_settings.value("romanizedLyrics", false).toBool(); }
+  void setRomanizedLyrics(bool enabled);
   QString lyrics() const { return m_lyrics; }
   QVariantList lyricLines() const { return m_lyricLines; }
+  QVariantList displayLyricLines() const { return romanizedLyrics() && !m_romanizedLyricLines.isEmpty() ? m_romanizedLyricLines : m_lyricLines; }
+  QString displayLyrics() const { return romanizedLyrics() && !m_romanizedLyrics.isEmpty() ? m_romanizedLyrics : m_lyrics; }
   int lyricIndex() const;
   bool lyricsBusy() const { return m_lyricsBusy; }
   QVariantList playlists() const;
@@ -312,6 +335,7 @@ signals:
   void audioDevicesChanged();
   void queueInfoChanged();
   void artworkCacheCleared();
+  void albumColorsChanged();
   void seeked(qint64 position);
   void toast(const QString &message);
   void raiseRequested();
@@ -359,9 +383,9 @@ private:
   QList<qint64> m_queueSuffix;
   CollectionView m_collection;
   QMediaDevices m_devices;
-  QVariantList m_lyricLines;
+  QVariantList m_lyricLines, m_romanizedLyricLines;
   QVariantList m_sections, m_favorites, m_history, m_playlists, m_back, m_pins;
-  QString m_page = "home", m_title = "Listen", m_cover, m_error, m_lyrics,
+  QString m_page = "home", m_title = "Listen", m_cover, m_error, m_lyrics, m_romanizedLyrics,
           m_libraryId;
   QVariantMap m_request, m_lyricOffsets;
   QString m_retryTarget, m_undoType, m_undoMessage;
@@ -394,4 +418,7 @@ private:
   bool m_uiActive = true;
   int m_notifiedLyricIndex = -1;
   QTimer m_positionTick;
+  QVariantMap m_albumColors;
+  bool m_hasAlbumColors = false;
+  QHash<QString, QVariantMap> m_paletteCache;
 };

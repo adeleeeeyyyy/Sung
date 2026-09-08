@@ -2,7 +2,20 @@
 #include <QImage>
 #include <QNetworkReply>
 #include <QPointer>
+#if __has_include(<QQuickPaintedItem>)
 #include <QQuickPaintedItem>
+#else
+#include <QObject>
+class QQuickItem;
+class QPainter;
+class QQuickPaintedItem : public QObject {
+  Q_OBJECT
+public:
+  explicit QQuickPaintedItem(QObject *p = nullptr) : QObject(p) {}
+  virtual void update() {}
+  virtual void paint(QPainter *) {}
+};
+#endif
 
 class RoundedArt : public QQuickPaintedItem {
   Q_OBJECT
@@ -36,6 +49,8 @@ public:
   bool ready() const { return !m_image.isNull(); }
   void paint(QPainter *) override;
   static void clearCaches();
+  static QImage getCachedImage(const QUrl &url);
+  static QNetworkAccessManager *networkManager();
 signals:
   void sourceChanged();
   void radiusChanged();

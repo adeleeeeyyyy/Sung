@@ -16,27 +16,52 @@ Item {
         app.seekLyric(matches[index].start);closeSearch();
     }
     Connections { target: app; function onLyricsChanged(){if(lyricPane.searchOpen)lyricPane.refreshSearch();} }
-    RowLayout {
-        id: searchControls; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        height: visible?48:0; visible: lyricPane.searchOpen; spacing: 6
-        TextField {
-            id: lyricSearch; objectName: "lyricSearchField"; Layout.fillWidth: true; Layout.minimumWidth: 0; implicitHeight: 40
-            placeholderText: "Find in lyrics"; selectByMouse: true; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.text; placeholderTextColor: Theme.muted
-            background: Rectangle { radius: 20; color: Theme.high; border.width: lyricSearch.activeFocus?1:0; border.color: Theme.primary }
-            leftPadding: 14; rightPadding: 10
-            Accessible.name: "Find in lyrics"
-            onTextChanged: searchDelay.restart()
-            Keys.onDownPressed: {lyricResults.currentIndex=Math.min(lyricPane.matches.length-1,lyricResults.currentIndex+1);}
-            Keys.onUpPressed: {lyricResults.currentIndex=Math.max(0,lyricResults.currentIndex-1);}
-            Keys.onReturnPressed: {if(searchDelay.running){searchDelay.stop();lyricPane.refreshSearch();}else if(lyricResults.currentIndex<0)lyricPane.refreshSearch();lyricPane.jumpMatch(lyricResults.currentIndex);}
-            Keys.onEscapePressed: lyricPane.closeSearch()
+    ColumnLayout {
+        id: headerLayout
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        spacing: 6
+        RowLayout {
+            id: searchControls; Layout.fillWidth: true
+            height: visible?48:0; visible: lyricPane.searchOpen; spacing: 6
+            TextField {
+                id: lyricSearch; objectName: "lyricSearchField"; Layout.fillWidth: true; Layout.minimumWidth: 0; implicitHeight: 40
+                placeholderText: "Find in lyrics"; selectByMouse: true; font.family: Theme.fontFamily; font.pixelSize: 14; color: Theme.text; placeholderTextColor: Theme.muted
+                background: Rectangle { radius: 20; color: Theme.high; border.width: lyricSearch.activeFocus?1:0; border.color: Theme.primary }
+                leftPadding: 14; rightPadding: 10
+                Accessible.name: "Find in lyrics"
+                onTextChanged: searchDelay.restart()
+                Keys.onDownPressed: {lyricResults.currentIndex=Math.min(lyricPane.matches.length-1,lyricResults.currentIndex+1);}
+                Keys.onUpPressed: {lyricResults.currentIndex=Math.max(0,lyricResults.currentIndex-1);}
+                Keys.onReturnPressed: {if(searchDelay.running){searchDelay.stop();lyricPane.refreshSearch();}else if(lyricResults.currentIndex<0)lyricPane.refreshSearch();lyricPane.jumpMatch(lyricResults.currentIndex);}
+                Keys.onEscapePressed: lyricPane.closeSearch()
+            }
+            SungText { text: lyricPane.matches.length; visible: lyricSearch.text.length>0; color: Theme.muted; font.pixelSize: 12 }
+            MButton { objectName: "closeLyricSearch"; symbol: "close"; tip: "Close lyric search"; onClicked: lyricPane.closeSearch() }
         }
-        SungText { text: lyricPane.matches.length; visible: lyricSearch.text.length>0; color: Theme.muted; font.pixelSize: 12 }
-        MButton { objectName: "closeLyricSearch"; symbol: "close"; tip: "Close lyric search"; onClicked: lyricPane.closeSearch() }
+        RowLayout {
+            id: lyricsModeRow
+            Layout.fillWidth: true
+            spacing: 6
+            visible: !app.lyricsBusy && (app.displayLyricLines.length>0 || app.displayLyrics.length>0) && !lyricPane.searchOpen
+            MButton {
+                objectName: "lyricsOriginalMode"
+                text: "Original"
+                selected: !app.romanizedLyrics
+                implicitHeight: 32
+                onClicked: app.romanizedLyrics = false
+            }
+            MButton {
+                objectName: "lyricsRomanizedMode"
+                text: "Romanized"
+                selected: app.romanizedLyrics
+                implicitHeight: 32
+                onClicked: app.romanizedLyrics = true
+            }
+        }
     }
     Timer { id: searchDelay; interval: 90; onTriggered: lyricPane.refreshSearch() }
     ListView {
-        id: lyricResults; objectName: "lyricSearchResults"; anchors.fill: parent; anchors.topMargin: searchControls.height+8; clip: true
+        id: lyricResults; objectName: "lyricSearchResults"; anchors.fill: parent; anchors.topMargin: headerLayout.height+8; clip: true
         visible: lyricPane.searchOpen && lyricSearch.text.length>0; model: lyricPane.matches; reuseItems: true; spacing: 8
         currentIndex: -1; highlightMoveDuration: app.motion?Theme.fast:0
         ScrollBar.vertical: ScrollBar {}
@@ -59,9 +84,9 @@ Item {
     BusyIndicator { anchors.centerIn: parent; running: app.lyricsBusy; visible: running }
     ListView {
         id: liveLyrics; objectName: "liveLyrics"
-        anchors.fill: parent; anchors.topMargin: searchControls.height; clip: true; spacing: 12
-        visible: !app.lyricsBusy && app.lyricLines.length>0 && !(lyricPane.searchOpen && lyricSearch.text.length>0)
-        model: app.lyricLines; reuseItems: true; cacheBuffer: 100
+        anchors.fill: parent; anchors.topMargin: headerLayout.height; clip: true; spacing: 12
+        visible: !app.lyricsBusy && app.displayLyricLines.length>0 && !(lyricPane.searchOpen && lyricSearch.text.length>0)
+        model: app.displayLyricLines; reuseItems: true; cacheBuffer: 100
         function centerCurrent() {
             Qt.callLater(function(){if(lyricPane.following && liveLyrics.visible && app.lyricIndex>=0)liveLyrics.positionViewAtIndex(app.lyricIndex,ListView.Center);});
         }
@@ -99,7 +124,6 @@ Item {
                 id: lyricLabel; objectName: "lyricLabel"
                 text: lyricLine.modelData.text || "…"
                 leftPadding: 8; rightPadding: 8; topPadding: 10; bottomPadding: 10
-                // Reserve the active size so emphasis never reflows adjacent lines.
                 font.pixelSize: lyricPane.expanded ? Math.max(24,Math.min(app.lyricTextSize*1.68,width/14*app.lyricTextSize/25)) : app.lyricTextSize; font.weight: Font.Medium
                 wrapMode: Text.Wrap; elide: Text.ElideNone; lineHeight: 1.25
                 color: Theme.primary
@@ -114,6 +138,6 @@ Item {
     }
     Timer { id: resumeFollow; interval: 8000; onTriggered: lyricPane.following=true }
     MButton { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; text: "Follow lyrics"; filled: true; visible: liveLyrics.visible && !lyricPane.following; onClicked: {lyricPane.following=true;resumeFollow.stop();} }
-    ScrollView { id: lyricsScroll; anchors.fill: parent; anchors.topMargin: searchControls.height; visible: !app.lyricsBusy && app.lyricLines.length===0 && !(lyricPane.searchOpen && lyricSearch.text.length>0); contentWidth: availableWidth; clip: true; SungText { width: lyricsScroll.availableWidth; text: app.lyrics || "Lyrics unavailable"; wrapMode: Text.Wrap; elide: Text.ElideNone; font.pixelSize: lyricPane.expanded ? app.lyricTextSize*1.12 : app.lyricTextSize*0.84; lineHeight: 1.55; color: app.lyrics?Theme.text:Theme.muted } }
-    MButton { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; text: "Try again"; tonal: true; visible: !app.lyrics && !app.lyricsBusy && app.currentIndex>=0; onClicked: app.reloadLyrics() }
+    ScrollView { id: lyricsScroll; anchors.fill: parent; anchors.topMargin: headerLayout.height; visible: !app.lyricsBusy && app.displayLyricLines.length===0 && !(lyricPane.searchOpen && lyricSearch.text.length>0); contentWidth: availableWidth; clip: true; SungText { width: lyricsScroll.availableWidth; text: app.displayLyrics || "Lyrics unavailable"; wrapMode: Text.Wrap; elide: Text.ElideNone; font.pixelSize: lyricPane.expanded ? app.lyricTextSize*1.12 : app.lyricTextSize*0.84; lineHeight: 1.55; color: app.displayLyrics?Theme.text:Theme.muted } }
+    MButton { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; text: "Try again"; tonal: true; visible: !app.displayLyrics && !app.lyricsBusy && app.currentIndex>=0; onClicked: app.reloadLyrics() }
 }
