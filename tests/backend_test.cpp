@@ -195,7 +195,17 @@ private slots:
     auto matches=b.localMatches("nebula");QVERIFY(matches.size()<=8);QCOMPARE(matches.first().toMap().value("kind").toString(),"local");
     auto exact=b.localMatches("nebula 2");QCOMPARE(exact.size(),1);QCOMPARE(exact.first().toMap().value("queueIndex").toInt(),2);
     QVERIFY(b.localMatches("zz-no-match").isEmpty());QVERIFY(b.localMatches("").isEmpty());
-    b.removeQueueRows({0,1,2,3,4,5});QCOMPARE(b.currentIndex(),-1);QCOMPARE(b.queue()->count(),0);b.undo();QCOMPARE(b.queue()->rows,songs);
+
+    // Test search suggestion relevance ranking
+    QVariantMap songA{{"id","rec1"},{"videoId","rec1"},{"title","Love Story"},{"kind","song"}};
+    QVariantMap songB{{"id","rec2"},{"videoId","rec2"},{"title","Love Yourself"},{"kind","song"}};
+    QVariantMap songC{{"id","rec3"},{"videoId","rec3"},{"title","To Love You More"},{"kind","song"}};
+    b.enqueueItems({songA, songB, songC});
+    auto suggestLoveYo=b.localMatches("love yo");
+    QVERIFY(suggestLoveYo.size()>=2);
+    QCOMPARE(suggestLoveYo.first().toMap().value("title").toString(), QString("Love Yourself"));
+
+    b.removeQueueRows({0,1,2,3,4,5,6,7,8});QCOMPARE(b.currentIndex(),-1);QCOMPARE(b.queue()->count(),0);b.undo();
     b.deletePlaylist(id);b.clearQueue();
   }
   void selectionTracksModelChanges() {

@@ -1456,23 +1456,91 @@ void Backend::removeRecentSearch(const QString &query) {
   auto recent=recentSearches();recent.removeAll(query);m_settings.setValue("recentSearches",recent);emit recentSearchesChanged();
 }
 QVariantList Backend::localMatches(const QString &query) const {
-  const auto terms=query.simplified().split(' ',Qt::SkipEmptyParts);
-  if(terms.isEmpty())return {};
-  QVariantList matches;QSet<QString> seen;
-  auto add=[&](QVariantMap item,const QString &origin,int queueIndex=-1){
-    const auto key=item.value("kind").toString()+":"+item.value("id").toString();
-    if(matches.size()>=8 || seen.contains(key))return;
-    const auto text=item.value("title").toString()+' '+item.value("artist").toString()+' '+item.value("album").toString();
-    for(const auto &term:terms)if(!text.contains(term,Qt::CaseInsensitive))return;
-    seen.insert(key);item["origin"]=origin;if(queueIndex>=0)item["queueIndex"]=queueIndex;matches.append(item);
+  const auto cleanQuery = query.simplified();
+  if (cleanQuery.isEmpty()) return {};
+  const auto terms = cleanQuery.split(' ', Qt::SkipEmptyParts);
+  if (terms.isEmpty()) return {};
+
+  struct Candidate {
+    QVariantMap item;
+    int score;
   };
-  for(const auto &v:m_playlists){auto p=v.toMap();add({{"kind","local"},{"id",p.value("id")},{"title",p.value("title")}},"Playlist");if(matches.size()>=8)break;}
-  for(int i=0;i<m_queue.count() && matches.size()<8;++i)add(m_queue.get(i),"Queue",i);
-  for(const auto &v:m_favorites){add(v.toMap(),"Liked songs");if(matches.size()>=8)break;}
-  for(const auto &v:m_playlists){for(const auto &t:v.toMap().value("tracks").toList()){add(t.toMap(),v.toMap().value("title").toString());if(matches.size()>=8)break;}if(matches.size()>=8)break;}
-  for(const auto &v:m_localTracks){add(v.toMap(),"Local files");if(matches.size()>=8)break;}
-  for(const auto &v:m_history){add(v.toMap(),"History");if(matches.size()>=8)break;}
-  return matches;
+  QList<Candidate> candidates;
+  QSet<QString> seen;
+
+  auto collect = [&](QVariantMap item, const QString &origin, int queueIndex = -1) {
+    const auto key = item.value("kind").toString() + ":" + item.value("id").toString();
+    if (seen.contains(key)) return;
+
+    const QString title = item.value("title").toString();
+    const QString artist = item.value("artist").toString();
+    const QString album = item.value("album").toString();
+    const QString text = (title + " " + artist + " " + album).simplified();
+
+    for (const auto &term : terms) {
+      if (!text.contains(term, Qt::CaseInsensitive)) return;
+    }
+
+    seen.insert(key);
+    item["origin"] = origin;
+    if (queueIndex >= 0) item["queueIndex"] = queueIndex;
+
+    int score = 0;
+    if (title.compare(cleanQuery, Qt::CaseInsensitive) == 0) {
+      score += 10000;
+    } else if (title.startsWith(cleanQuery, Qt::CaseInsensitive)) {
+      score += 5000;
+    } else {
+      const auto titleWords = title.split(' ', Qt::SkipEmptyParts);
+      for (const auto &word : titleWords) {
+        if (word.startsWith(cleanQuery, Qt::CaseInsensitive)) {
+          score += 3000;
+          break;
+        }
+      }
+    }
+    if (score < 3000 && title.contains(cleanQuery, Qt::CaseInsensitive)) {
+      score += 2000;
+    }
+    if (artist.startsWith(cleanQuery, Qt::CaseInsensitive)) score += 1500;
+    else if (artist.contains(cleanQuery, Qt::CaseInsensitive)) score += 500;
+
+    if (album.startsWith(cleanQuery, Qt::CaseInsensitive)) score += 1000;
+    else if (album.contains(cleanQuery, Qt::CaseInsensitive)) score += 300;
+
+    for (const auto &term : terms) {
+      if (title.startsWith(term, Qt::CaseInsensitive)) score += 400;
+      else if (title.contains(term, Qt::CaseInsensitive)) score += 200;
+    }
+
+    if (item.value("kind").toString() == "local") {
+      score += 5;
+    }
+
+    candidates.append({item, score});
+  };
+
+  for (const auto &v : m_playlists) {
+    auto p = v.toMap();
+    collect({{"kind", "local"}, {"id", p.value("id")}, {"title", p.value("title")}}, "Playlist");
+  }
+  for (int i = 0; i < m_queue.count(); ++i) collect(m_queue.get(i), "Queue", i);
+  for (const auto &v : m_favorites) collect(v.toMap(), "Liked songs");
+  for (const auto &v : m_playlists) {
+    for (const auto &t : v.toMap().value("tracks").toList()) collect(t.toMap(), v.toMap().value("title").toString());
+  }
+  for (const auto &v : m_localTracks) collect(v.toMap(), "Local files");
+  for (const auto &v : m_history) collect(v.toMap(), "History");
+
+  std::stable_sort(candidates.begin(), candidates.end(), [](const Candidate &a, const Candidate &b) {
+    return a.score > b.score;
+  });
+
+  QVariantList result;
+  for (int i = 0; i < qMin(8, candidates.size()); ++i) {
+    result.append(candidates[i].item);
+  }
+  return result;
 }
 static QList<int> validRows(const QVariantList &indices,int count) {
   QSet<int> unique;for(const auto &v:indices){bool ok=false;int i=v.toInt(&ok);if(ok&&i>=0&&i<count)unique.insert(i);}

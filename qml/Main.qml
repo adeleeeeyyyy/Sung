@@ -177,8 +177,8 @@ ApplicationWindow {
                             function choose(index) {
                                 if(index<0 || index>=suggestions.length){submit();return;}
                                 const item=suggestions[index];dismissed=true;
-                                if(item.recent){text=item.title;submit();}
-                                else {app.rememberSearch(text);content.forceActiveFocus();if(item.kind==="local")app.openPlaylist(item.id);else if(item.queueIndex!==undefined && app.queue.get(item.queueIndex).id===item.id)app.playAt(item.queueIndex);else app.playKeepingQueue(item);}
+                                if(item.title){text=item.title;submit();}
+                                else submit();
                             }
                             onTextEdited: {highlighted=-1;dismissed=false;suggestionDelay.restart();}
                             onActiveFocusChanged: {if(activeFocus){dismissed=false;updateSuggestions();}else suggestionDelay.stop();}
