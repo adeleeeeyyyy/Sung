@@ -313,7 +313,14 @@ void Backend::retry() {
   else if (target == "catalog")
     refresh();
 }
-void Backend::home() { browseRequest({{"op", "home"}}, m_page != "home"); }
+void Backend::home() {
+  QVariantMap req{{"op", "home"}};
+  const QString ck = cookies();
+  if (!ck.isEmpty()) req["cookies"] = ck;
+  const QString oa = m_settings.value("oauthFile").toString();
+  if (!oa.isEmpty()) req["oauthFile"] = oa;
+  browseRequest(req, m_page != "home");
+}
 void Backend::search(const QString &query, const QString &filter) {
   if (query.trimmed().isEmpty())
     return;
@@ -371,6 +378,10 @@ void Backend::more() {
   browseRequest(req, false);
 }
 void Backend::refresh() {
+  if (m_page == "home") {
+    home();
+    return;
+  }
   if (!m_request.isEmpty())
     browseRequest(m_request, false);
   else if (m_page == "library")
@@ -782,51 +793,159 @@ void Backend::radio(const QVariantMap &item) {
           });
 }
 void Backend::applyLyrics(const QVariantMap &data) {
+  m_trackToken++;
   m_lyricsBusy=false;m_lyricsLoaded=data.value("ok").toBool();
   m_lyricLines=data.contains("lrc")?Lrc::parse(data.value("lrc").toString(),duration()):data.value("lines").toList();
   m_lyrics=m_lyricLines.isEmpty()?data.value("lyrics").toString():Lrc::plain(m_lyricLines);
   m_romanizedLyricLines.clear();
   m_romanizedLyrics.clear();
+  m_romanizedLyricsFinished = false;
+  m_romanizedLyricsBusy = false;
   m_lyricsSource=m_lyrics.isEmpty()?QString():data.value("source","YouTube").toString();
   emit positionChanged();emit lyricsChanged();
   startAsyncRomanizationIfNeeded();
 }
 void Backend::startAsyncRomanizationIfNeeded() {
-  if (!romanizedLyrics() || m_lyrics.isEmpty()) {
+  if (m_lyrics.isEmpty()) {
     return;
   }
   if (!Romanizer::containsNonLatin(m_lyrics)) {
     m_romanizedLyricLines = m_lyricLines;
     m_romanizedLyrics = m_lyrics;
+    m_romanizedLyricsFinished = true;
     emit lyricsChanged();
     return;
   }
-  if (!m_romanizedLyrics.isEmpty()) {
+  if (m_romanizedLyricsFinished || m_romanizedLyricsBusy) {
     return;
   }
+
+  m_romanizedLyricLines = m_lyricLines;
+  m_romanizedLyrics = m_lyrics;
+  m_romanizedLyricsBusy = true;
+
   const auto token = m_trackToken;
   const auto id = current().value("id").toString();
   const auto linesToRomanize = m_lyricLines;
   const auto textToRomanize = m_lyrics;
+  const int currentIdx = lyricIndex();
 
-  QThread::create([this, token, id, linesToRomanize, textToRomanize]() {
-    const auto romanizedLines = Romanizer::romanizeLines(linesToRomanize);
-    const auto romanizedText = Romanizer::romanizeText(textToRomanize);
+  QThread::create([this, token, id, linesToRomanize, textToRomanize, currentIdx]() {
+    const int CHUNK_SIZE = 12;
 
-    QMetaObject::invokeMethod(this, [this, token, id, romanizedLines, romanizedText]() {
-      if (token != m_trackToken || current().value("id").toString() != id) {
-        return;
+    if (!linesToRomanize.isEmpty()) {
+      const int totalLines = linesToRomanize.size();
+      const int numChunks = (totalLines + CHUNK_SIZE - 1) / CHUNK_SIZE;
+
+      int startChunk = 0;
+      if (currentIdx >= 0 && currentIdx < totalLines) {
+        startChunk = currentIdx / CHUNK_SIZE;
       }
-      m_romanizedLyricLines = romanizedLines;
-      m_romanizedLyrics = romanizedText;
-      emit lyricsChanged();
+
+      QList<int> chunkOrder;
+      chunkOrder.reserve(numChunks);
+      chunkOrder.append(startChunk);
+
+      for (int step = 1; step < numChunks; ++step) {
+        int right = startChunk + step;
+        int left = startChunk - step;
+        if (right < numChunks) chunkOrder.append(right);
+        if (left >= 0) chunkOrder.append(left);
+      }
+
+      for (int cIdx : chunkOrder) {
+        if (token != m_trackToken || id != current().value("id").toString()) {
+          return;
+        }
+
+        const int start = cIdx * CHUNK_SIZE;
+        const int end = qMin(start + CHUNK_SIZE, totalLines);
+
+        QVariantList chunkRomanized;
+        chunkRomanized.reserve(end - start);
+        for (int i = start; i < end; ++i) {
+          auto lineMap = linesToRomanize[i].toMap();
+          const QString origText = lineMap.value("text").toString();
+          lineMap["text"] = Romanizer::romanizeLine(origText);
+          chunkRomanized.append(lineMap);
+        }
+
+        if (token != m_trackToken || id != current().value("id").toString()) {
+          return;
+        }
+
+        QMetaObject::invokeMethod(this, [this, token, id, start, end, chunkRomanized]() {
+          if (token != m_trackToken || current().value("id").toString() != id) {
+            return;
+          }
+          for (int i = start; i < end && (i - start) < chunkRomanized.size(); ++i) {
+            if (i < m_romanizedLyricLines.size()) {
+              m_romanizedLyricLines[i] = chunkRomanized[i - start];
+            }
+          }
+          QStringList parts;
+          parts.reserve(m_romanizedLyricLines.size());
+          for (const auto &v : m_romanizedLyricLines) {
+            parts.append(v.toMap().value("text").toString());
+          }
+          m_romanizedLyrics = parts.join('\n');
+          emit lyricsChanged();
+        });
+      }
+    } else {
+      const QStringList rawLines = textToRomanize.split('\n');
+      const int totalLines = rawLines.size();
+      const int numChunks = (totalLines + CHUNK_SIZE - 1) / CHUNK_SIZE;
+
+      for (int cIdx = 0; cIdx < numChunks; ++cIdx) {
+        if (token != m_trackToken || id != current().value("id").toString()) {
+          return;
+        }
+
+        const int start = cIdx * CHUNK_SIZE;
+        const int end = qMin(start + CHUNK_SIZE, totalLines);
+
+        QStringList chunkRomanized;
+        chunkRomanized.reserve(end - start);
+        for (int i = start; i < end; ++i) {
+          chunkRomanized.append(Romanizer::romanizeLine(rawLines[i]));
+        }
+
+        if (token != m_trackToken || id != current().value("id").toString()) {
+          return;
+        }
+
+        QMetaObject::invokeMethod(this, [this, token, id, start, end, totalLines, chunkRomanized]() {
+          if (token != m_trackToken || current().value("id").toString() != id) {
+            return;
+          }
+          QStringList currentLines = m_romanizedLyrics.split('\n');
+          while (currentLines.size() < totalLines) {
+            currentLines.append(QString());
+          }
+          for (int i = start; i < end && (i - start) < chunkRomanized.size(); ++i) {
+            if (i < currentLines.size()) {
+              currentLines[i] = chunkRomanized[i - start];
+            }
+          }
+          m_romanizedLyrics = currentLines.join('\n');
+          emit lyricsChanged();
+        });
+      }
+    }
+
+    QMetaObject::invokeMethod(this, [this, token, id]() {
+      if (token == m_trackToken && current().value("id").toString() == id) {
+        m_romanizedLyricsFinished = true;
+        m_romanizedLyricsBusy = false;
+      }
     });
   })->start();
 }
 void Backend::setRomanizedLyrics(bool enabled) {
   m_settings.setValue("romanizedLyrics", enabled);
   emit settingsChanged();
-  if (enabled && m_romanizedLyricLines.isEmpty()) {
+  if (enabled && !m_romanizedLyricsFinished) {
     startAsyncRomanizationIfNeeded();
   }
   emit lyricsChanged();
@@ -971,8 +1090,16 @@ void Backend::setCookieFile(const QUrl &url) {
   }
   cancelPreparation();m_streams.clear();
   m_settings.setValue("cookies", path);
+  m_youtubeConnected = true;
+  m_youtubeAccountName = "Cookies session";
+  m_youtubeChannelHandle.clear();
+  m_settings.setValue("youtubeConnected", true);
+  m_settings.setValue("youtubeAccountName", m_youtubeAccountName);
+  m_settings.remove("youtubeChannelHandle");
   emit settingsChanged();
+  emit youtubeAccountChanged();
   emit toast("Cookies imported");
+  syncYouTubeData();
 }
 void Backend::clearCookies() {
   const auto p = cookies();
@@ -980,7 +1107,17 @@ void Backend::clearCookies() {
     QFile::remove(p);
   cancelPreparation();m_streams.clear();
   m_settings.remove("cookies");
+  m_youtubeConnected = false;
+  m_youtubeAccountName.clear();
+  m_youtubeChannelHandle.clear();
+  m_youtubePlaylists.clear();
+  m_youtubeSubscriptions.clear();
+  m_settings.remove("youtubeConnected");
+  m_settings.remove("youtubeAccountName");
+  m_settings.remove("youtubeChannelHandle");
   emit settingsChanged();
+  emit youtubeAccountChanged();
+  emit youtubeDataChanged();
 }
 void Backend::clearCache() {
   const auto p =
@@ -1291,7 +1428,7 @@ void Backend::invalidateUndo(const QString &type) {
   m_undoType.clear();m_undoRows.clear();m_undoLastPlayed.clear();m_undoMessage.clear();emit libraryChanged();
 }
 void Backend::clearLyrics() {
-  cancel("lyrics");m_lyricsLoaded=false;m_lyricsSource.clear();m_lyrics.clear();m_lyricLines.clear();m_romanizedLyrics.clear();m_romanizedLyricLines.clear();m_lyricsBusy=false;emit lyricsChanged();
+  m_trackToken++;cancel("lyrics");m_lyricsLoaded=false;m_lyricsSource.clear();m_lyrics.clear();m_lyricLines.clear();m_romanizedLyrics.clear();m_romanizedLyricLines.clear();m_romanizedLyricsFinished=false;m_romanizedLyricsBusy=false;m_lyricsBusy=false;emit lyricsChanged();
 }
 void Backend::saveQueue(const QString &name) {
   if(m_queue.count()==0)return;
@@ -2068,81 +2205,24 @@ void Backend::setYoutubeUseForRecommendations(bool enabled) {
   emit settingsChanged();
 }
 
-void Backend::connectYouTube() {
-  m_youtubeConnecting = true;
-  m_youtubeUserCode.clear();
-  m_youtubeVerificationUrl.clear();
-  m_youtubeDeviceCode.clear();
-  emit youtubeAccountChanged();
-
-  const QString oauthFile = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + "/Sung/youtube_oauth.json";
-  QVariantMap req{{"op", "yt-oauth-start"}, {"oauthFile", oauthFile}};
-  request("catalog", req, [this](const QVariantMap &data) {
-    if (!data.value("error").toString().isEmpty()) {
-      m_youtubeConnecting = false;
-      emit youtubeAccountChanged();
-      notifyError("YouTube OAuth start failed: " + data.value("error").toString());
-      return;
-    }
-    m_youtubeUserCode = data.value("userCode").toString();
-    m_youtubeVerificationUrl = data.value("verificationUrl").toString();
-    m_youtubeDeviceCode = data.value("deviceCode").toString();
-    emit youtubeAccountChanged();
-  });
-}
-
-void Backend::finishYouTubeConnect() {
-  if (m_youtubeDeviceCode.isEmpty()) return;
-  const QString oauthFile = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + "/Sung/youtube_oauth.json";
-  QVariantMap req{{"op", "yt-oauth-finish"}, {"deviceCode", m_youtubeDeviceCode}, {"oauthFile", oauthFile}};
-  request("catalog", req, [this](const QVariantMap &data) {
-    if (data.value("pending").toBool()) {
-      emit toast("Please enter code on google.com/device first.");
-      return;
-    }
-    if (data.value("connected").toBool()) {
-      m_youtubeConnected = true;
-      m_youtubeConnecting = false;
-      m_youtubeAccountName = data.value("accountName").toString();
-      m_youtubeChannelHandle = data.value("channelHandle").toString();
-      m_settings.setValue("youtubeConnected", true);
-      m_settings.setValue("youtubeAccountName", m_youtubeAccountName);
-      m_settings.setValue("youtubeChannelHandle", m_youtubeChannelHandle);
-      m_saveTimer.start();
-      emit youtubeAccountChanged();
-      emit toast("YouTube account connected!");
-      syncYouTubeData();
-    } else {
-      notifyError("Connection failed: " + data.value("error").toString());
-    }
-  });
-}
-
-void Backend::cancelYouTubeConnect() {
-  m_youtubeConnecting = false;
-  m_youtubeUserCode.clear();
-  m_youtubeVerificationUrl.clear();
-  m_youtubeDeviceCode.clear();
-  emit youtubeAccountChanged();
-}
-
 void Backend::disconnectYouTube() {
+  const auto p = cookies();
+  if (p == dataPath() + "/cookies.txt")
+    QFile::remove(p);
+  m_settings.remove("cookies");
   const QString oauthFile = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + "/Sung/youtube_oauth.json";
   QVariantMap req{{"op", "yt-disconnect"}, {"oauthFile", oauthFile}};
   request("catalog", req, [this](const QVariantMap &) {
     m_youtubeConnected = false;
-    m_youtubeConnecting = false;
     m_youtubeAccountName.clear();
     m_youtubeChannelHandle.clear();
-    m_youtubeUserCode.clear();
-    m_youtubeVerificationUrl.clear();
-    m_youtubeDeviceCode.clear();
     m_youtubePlaylists.clear();
     m_youtubeSubscriptions.clear();
     m_settings.remove("youtubeConnected");
     m_settings.remove("youtubeAccountName");
     m_settings.remove("youtubeChannelHandle");
     m_saveTimer.start();
+    emit settingsChanged();
     emit youtubeAccountChanged();
     emit youtubeDataChanged();
     emit toast("YouTube account disconnected.");
@@ -2153,13 +2233,13 @@ void Backend::syncYouTubeData() {
   if (!m_youtubeConnected) return;
   const QString oauthFile = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + "/Sung/youtube_oauth.json";
 
-  QVariantMap reqPlaylists{{"op", "yt-library-playlists"}, {"oauthFile", oauthFile}, {"limit", 50}};
+  QVariantMap reqPlaylists{{"op", "yt-library-playlists"}, {"oauthFile", oauthFile}, {"cookies", cookies()}, {"limit", 50}};
   request("catalog", reqPlaylists, [this](const QVariantMap &data) {
     m_youtubePlaylists = data.value("items").toList();
     emit youtubeDataChanged();
   });
 
-  QVariantMap reqSubs{{"op", "yt-library-subscriptions"}, {"oauthFile", oauthFile}, {"limit", 50}};
+  QVariantMap reqSubs{{"op", "yt-library-subscriptions"}, {"oauthFile", oauthFile}, {"cookies", cookies()}, {"limit", 50}};
   request("catalog", reqSubs, [this](const QVariantMap &data) {
     m_youtubeSubscriptions = data.value("items").toList();
     emit youtubeDataChanged();

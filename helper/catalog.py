@@ -48,6 +48,16 @@ def clean(items, kind='', parent=None):
     return [t for i in items if isinstance(i, dict) and (t := normalize(i, kind, parent))['id']]
 
 
+def get_auth_file(request_data):
+    from pathlib import Path
+    for k in ('oauthFile', 'cookies'):
+        val = request_data.get(k)
+        if val:
+            p = Path(val)
+            if p.is_file(): return str(p)
+    return None
+
+
 def normalize_lyrics(data):
     from dataclasses import asdict, is_dataclass
     if is_dataclass(data): data=asdict(data)
@@ -263,13 +273,81 @@ def run(req):
         if not info or not info.get('url'):
             raise RuntimeError('No playable audio stream returned')
         return {'url': info['url'], 'headers': info.get('http_headers', {}), 'seconds': info.get('duration', 0)}
-    from ytmusicapi import YTMusic
-    api = YTMusic(requests_session=True)
-    # Bound network calls; outer C++ watchdog also terminates stalled operations.
-    api._session.request = _timeout_request(api._session.request, 8 if op == 'lyrics' else 20)
+    try:
+        from ytmusicapi import YTMusic
+    except Exception:
+        YTMusic = None
+
+    auth_path = get_auth_file(req)
+    api = None
+    if YTMusic:
+        if auth_path:
+            try:
+                api = YTMusic(auth=auth_path, requests_session=True)
+            except Exception:
+                try: api = YTMusic(requests_session=True)
+                except Exception: api = None
+        else:
+            try: api = YTMusic(requests_session=True)
+            except Exception: api = None
+
+    if api:
+        api._session.request = _timeout_request(api._session.request, 8 if op == 'lyrics' else 20)
+
     if op == 'home':
-        return {'sections': [{'title': s.get('title', ''), 'items': clean(s.get('contents', []))}
-                             for s in api.get_home(limit=5) if s.get('contents')]}
+        raw_sections = []
+        if api:
+            try:
+                raw_sections = api.get_home(limit=6)
+            except Exception:
+                raw_sections = []
+
+        if not raw_sections and auth_path:
+            try:
+                unauth_api = YTMusic(requests_session=True)
+                unauth_api._session.request = _timeout_request(unauth_api._session.request, 20)
+                raw_sections = unauth_api.get_home(limit=6)
+            except Exception:
+                raw_sections = []
+
+        seen_ids = set()
+        cleaned_sections = []
+        for s in (raw_sections or []):
+            if not isinstance(s, dict) or not s.get('contents'):
+                continue
+            items = []
+            for raw_item in s.get('contents', []):
+                if not isinstance(raw_item, dict):
+                    continue
+                cleaned_item = normalize(raw_item)
+                item_id = cleaned_item.get('id')
+                if not item_id or item_id in seen_ids:
+                    continue
+
+                if cleaned_item.get('kind') == 'video':
+                    title_lower = cleaned_item.get('title', '').lower()
+                    if '#shorts' in title_lower or 'shorts' in title_lower:
+                        continue
+                    sec = cleaned_item.get('seconds') or 0
+                    if 0 < sec < 20:
+                        continue
+
+                seen_ids.add(item_id)
+                items.append(cleaned_item)
+
+            if items:
+                title = s.get('title') or 'Recommended'
+                cleaned_sections.append({'title': title, 'items': items})
+
+        if not cleaned_sections and api:
+            try:
+                trending_items = clean(api.search('trending', filter='songs', limit=20))
+                if trending_items:
+                    cleaned_sections = [{'title': 'Recommended', 'items': trending_items}]
+            except Exception:
+                pass
+
+        return {'sections': cleaned_sections}
     if op == 'search':
         limit = min(max(int(req.get('limit', 30)), 1), 200)
         return {'items': clean(api.search(req['query'], filter=req.get('filter') or None, limit=limit))}
@@ -329,131 +407,30 @@ def run(req):
         if playlist:
             return run({'op':'playlist','id':playlist,'limit':100})
         raise ValueError('This link has no song or playlist')
-    if op == 'yt-oauth-start':
-        import requests
-        client_id = req.get('clientId') or '861556737565-d09f538q65al2m7jbficvvsk364q21n0.apps.googleusercontent.com'
-        scope = req.get('scope') or 'https://www.googleapis.com/auth/youtube'
-        try:
-            r = requests.post('https://www.youtube.com/o/oauth2/device/code', data={'client_id': client_id, 'scope': scope}, headers={'User-Agent': 'Mozilla/5.0 Cobalt/Version'}, timeout=15)
-            if r.status_code == 200:
-                data = r.json()
-                return {
-                    'userCode': data.get('user_code', ''),
-                    'verificationUrl': data.get('verification_url', 'https://www.google.com/device'),
-                    'deviceCode': data.get('device_code', ''),
-                    'expiresIn': data.get('expires_in', 1800),
-                    'interval': data.get('interval', 5)
-                }
-        except Exception:
-            pass
-        # Fallback for dev/test environments without Google OAuth network access
-        import time
-        fake_code = f"SUNG-{int(time.time())%10000:04d}"
-        return {
-            'userCode': fake_code,
-            'verificationUrl': 'https://www.google.com/device',
-            'deviceCode': f"dev_{fake_code}",
-            'expiresIn': 1800,
-            'interval': 5
-        }
-
-    if op == 'yt-oauth-finish':
-        import requests, time
-        from pathlib import Path
-        device_code = req.get('deviceCode', '')
-        client_id = req.get('clientId') or '861556737565-d09f538q65al2m7jbficvvsk364q21n0.apps.googleusercontent.com'
-        client_secret = req.get('clientSecret') or ''
-        oauth_file = Path(req.get('oauthFile', 'youtube_oauth.json'))
-        oauth_file.parent.mkdir(parents=True, exist_ok=True)
-
-        if device_code.startswith('dev_'):
-            # Mock success for testing / offline authorization
-            token_data = {
-                'scope': 'https://www.googleapis.com/auth/youtube',
-                'token_type': 'Bearer',
-                'access_token': 'mock_access_token_' + device_code,
-                'refresh_token': 'mock_refresh_token_' + device_code,
-                'expires_at': int(time.time()) + 3600,
-                'expires_in': 3600
-            }
-            with open(oauth_file, 'w', encoding='utf-8') as f:
-                json.dump(token_data, f, indent=2)
-            return {'connected': True, 'accountName': 'YouTube User', 'channelHandle': '@youtubeuser'}
-
-        try:
-            r = requests.post('https://oauth2.googleapis.com/token', data={
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'code': device_code,
-                'grant_type': 'http://oauth.net/grant_type/device/1.0'
-            }, headers={'User-Agent': 'Mozilla/5.0 Cobalt/Version'}, timeout=15)
-            res = r.json()
-            if 'error' in res:
-                err = res.get('error')
-                if err == 'authorization_pending':
-                    return {'pending': True, 'message': 'Authorization pending on google.com/device'}
-                raise RuntimeError(res.get('error_description') or err)
-
-            token_data = {
-                'scope': res.get('scope', 'https://www.googleapis.com/auth/youtube'),
-                'token_type': res.get('token_type', 'Bearer'),
-                'access_token': res['access_token'],
-                'refresh_token': res.get('refresh_token', ''),
-                'expires_at': int(time.time()) + int(res.get('expires_in', 3600)),
-                'expires_in': int(res.get('expires_in', 3600))
-            }
-            with open(oauth_file, 'w', encoding='utf-8') as f:
-                json.dump(token_data, f, indent=2)
-
-            account_name, handle = 'Connected User', ''
-            try:
-                from ytmusicapi import YTMusic
-                yt = YTMusic(auth=str(oauth_file))
-                info = yt.get_account_info()
-                account_name = info.get('accountName') or 'Connected User'
-                handle = info.get('channelHandle') or ''
-            except Exception:
-                pass
-            return {'connected': True, 'accountName': account_name, 'channelHandle': handle}
-        except Exception as e:
-            # Create a mock credential session if network token endpoint fails in test mode
-            token_data = {
-                'scope': 'https://www.googleapis.com/auth/youtube',
-                'token_type': 'Bearer',
-                'access_token': 'test_access_token',
-                'refresh_token': 'test_refresh_token',
-                'expires_at': int(time.time()) + 3600,
-                'expires_in': 3600
-            }
-            with open(oauth_file, 'w', encoding='utf-8') as f:
-                json.dump(token_data, f, indent=2)
-            return {'connected': True, 'accountName': 'YouTube User', 'channelHandle': '@youtubeuser'}
 
     if op == 'yt-account-info':
-        from pathlib import Path
-        oauth_file = Path(req.get('oauthFile', 'youtube_oauth.json'))
-        if not oauth_file.is_file():
+        auth_path = get_auth_file(req)
+        if not auth_path:
             return {'connected': False}
         try:
             from ytmusicapi import YTMusic
-            yt = YTMusic(auth=str(oauth_file))
+            yt = YTMusic(auth=auth_path)
             info = yt.get_account_info()
             return {
                 'connected': True,
                 'accountName': info.get('accountName') or 'Connected User',
                 'channelHandle': info.get('channelHandle') or ''
             }
-        except Exception as e:
+        except Exception:
             return {'connected': True, 'accountName': 'YouTube User', 'channelHandle': ''}
 
     if op == 'yt-library-playlists':
-        from pathlib import Path
-        oauth_file = Path(req.get('oauthFile', 'youtube_oauth.json'))
-        if not oauth_file.is_file():
+        auth_path = get_auth_file(req)
+        if not auth_path:
             return {'items': []}
         try:
             from ytmusicapi import YTMusic
-            yt = YTMusic(auth=str(oauth_file))
+            yt = YTMusic(auth=auth_path)
             limit = min(int(req.get('limit', 50)), 500)
             playlists = yt.get_library_playlists(limit=limit)
             items = []
@@ -470,13 +447,12 @@ def run(req):
             return {'items': []}
 
     if op == 'yt-library-subscriptions':
-        from pathlib import Path
-        oauth_file = Path(req.get('oauthFile', 'youtube_oauth.json'))
-        if not oauth_file.is_file():
+        auth_path = get_auth_file(req)
+        if not auth_path:
             return {'items': []}
         try:
             from ytmusicapi import YTMusic
-            yt = YTMusic(auth=str(oauth_file))
+            yt = YTMusic(auth=auth_path)
             limit = min(int(req.get('limit', 50)), 500)
             subs = yt.get_library_subscriptions(limit=limit)
             items = []
@@ -493,13 +469,15 @@ def run(req):
 
     if op == 'yt-disconnect':
         from pathlib import Path
-        oauth_file = Path(req.get('oauthFile', 'youtube_oauth.json'))
-        if oauth_file.is_file():
-            try: oauth_file.unlink()
-            except OSError: pass
+        for k in ('oauthFile', 'cookies'):
+            val = req.get(k)
+            if val:
+                p = Path(val)
+                if p.is_file():
+                    try: p.unlink()
+                    except OSError: pass
         return {'disconnected': True}
 
-    raise ValueError('Unknown request')
     raise ValueError('Unknown request')
 
 

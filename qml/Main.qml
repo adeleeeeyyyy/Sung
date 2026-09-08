@@ -666,26 +666,14 @@ ApplicationWindow {
                 SungText { text: "YouTube Account"; font.pixelSize: 16; font.weight: Font.Medium; Layout.topMargin: 8 }
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: 8
-                    visible: !app.youtubeConnected && !app.youtubeConnecting
-                    SungText { text: "Connect your YouTube account to personalize music recommendations and access your YouTube playlists."; wrapMode: Text.Wrap; Layout.fillWidth: true; color: Theme.muted; font.pixelSize: 12 }
-                    MButton { objectName: "connectYouTubeButton"; text: "Connect YouTube account"; tonal: true; onClicked: app.connectYouTube() }
-                }
-                ColumnLayout {
-                    Layout.fillWidth: true; spacing: 8
-                    visible: app.youtubeConnecting
-                    SungText { text: app.youtubeUserCode ? ("Visit " + app.youtubeVerificationUrl + " and enter code:") : "Obtaining authorization code..." ; wrapMode: Text.Wrap; Layout.fillWidth: true; font.pixelSize: 13 }
-                    SungText { text: app.youtubeUserCode; font.pixelSize: 22; font.weight: Font.Bold; color: Theme.primary; visible: !!app.youtubeUserCode }
-                    RowLayout {
-                        spacing: 8
-                        MButton { objectName: "openVerificationUrlButton"; text: "Open link"; tonal: true; visible: !!app.youtubeVerificationUrl; onClicked: Qt.openUrlExternally(app.youtubeVerificationUrl) }
-                        MButton { objectName: "confirmYouTubeConnectionButton"; text: "Confirm connection"; tonal: true; visible: !!app.youtubeUserCode; onClicked: app.finishYouTubeConnect() }
-                        MButton { objectName: "cancelYouTubeConnectionButton"; text: "Cancel"; onClicked: app.cancelYouTubeConnect() }
-                    }
+                    visible: !app.youtubeConnected
+                    SungText { text: "Import cookies.txt to access your YouTube playlists and personalize music recommendations."; wrapMode: Text.Wrap; Layout.fillWidth: true; color: Theme.muted; font.pixelSize: 12 }
+                    MButton { objectName: "importCookiesButton"; text: app.cookies ? "Replace cookies.txt" : "Import cookies.txt"; tonal: true; symbol: "folder"; onClicked: window.openFileDialog("cookies") }
                 }
                 ColumnLayout {
                     Layout.fillWidth: true; spacing: 8
                     visible: app.youtubeConnected
-                    SungText { text: "Connected: " + (app.youtubeAccountName || "YouTube User") + (app.youtubeChannelHandle ? (" (" + app.youtubeChannelHandle + ")") : ""); font.pixelSize: 13; font.weight: Font.Medium; color: Theme.text }
+                    SungText { text: "✓ Connected: " + (app.youtubeAccountName || "YouTube User") + (app.youtubeChannelHandle ? (" (" + app.youtubeChannelHandle + ")") : ""); font.pixelSize: 13; font.weight: Font.Medium; color: Theme.text }
                     MSwitch { objectName: "youtubeRecommendationsSwitch"; text: "Use YouTube data for recommendations"; checked: app.youtubeUseForRecommendations; onToggled: app.youtubeUseForRecommendations = checked }
                     RowLayout {
                         spacing: 8

@@ -123,9 +123,6 @@ class Backend : public QObject {
   Q_PROPERTY(QString youtubeAccountName READ youtubeAccountName NOTIFY youtubeAccountChanged)
   Q_PROPERTY(QString youtubeChannelHandle READ youtubeChannelHandle NOTIFY youtubeAccountChanged)
   Q_PROPERTY(bool youtubeUseForRecommendations READ youtubeUseForRecommendations WRITE setYoutubeUseForRecommendations NOTIFY settingsChanged)
-  Q_PROPERTY(bool youtubeConnecting READ youtubeConnecting NOTIFY youtubeAccountChanged)
-  Q_PROPERTY(QString youtubeUserCode READ youtubeUserCode NOTIFY youtubeAccountChanged)
-  Q_PROPERTY(QString youtubeVerificationUrl READ youtubeVerificationUrl NOTIFY youtubeAccountChanged)
   Q_PROPERTY(QVariantList youtubePlaylists READ youtubePlaylists NOTIFY youtubeDataChanged)
   Q_PROPERTY(QVariantList youtubeSubscriptions READ youtubeSubscriptions NOTIFY youtubeDataChanged)
 public:
@@ -134,14 +131,8 @@ public:
   QString youtubeChannelHandle() const { return m_youtubeChannelHandle; }
   bool youtubeUseForRecommendations() const { return m_settings.value("youtubeUseForRecommendations", false).toBool(); }
   void setYoutubeUseForRecommendations(bool enabled);
-  bool youtubeConnecting() const { return m_youtubeConnecting; }
-  QString youtubeUserCode() const { return m_youtubeUserCode; }
-  QString youtubeVerificationUrl() const { return m_youtubeVerificationUrl; }
   QVariantList youtubePlaylists() const { return m_youtubePlaylists; }
   QVariantList youtubeSubscriptions() const { return m_youtubeSubscriptions; }
-  Q_INVOKABLE void connectYouTube();
-  Q_INVOKABLE void finishYouTubeConnect();
-  Q_INVOKABLE void cancelYouTubeConnect();
   Q_INVOKABLE void disconnectYouTube();
   Q_INVOKABLE void syncYouTubeData();
   Q_INVOKABLE QVariantList generateYouTubePersonalizationSignals() const;
@@ -411,6 +402,7 @@ private:
   CollectionView m_collection;
   QMediaDevices m_devices;
   QVariantList m_lyricLines, m_romanizedLyricLines;
+  bool m_romanizedLyricsFinished = false, m_romanizedLyricsBusy = false;
   QVariantList m_sections, m_favorites, m_history, m_playlists, m_back, m_pins;
   QString m_page = "home", m_title = "Listen", m_cover, m_error, m_lyrics, m_romanizedLyrics,
           m_libraryId;
@@ -449,12 +441,8 @@ private:
   bool m_hasAlbumColors = false;
   QHash<QString, QVariantMap> m_paletteCache;
   bool m_youtubeConnected = false;
-  bool m_youtubeConnecting = false;
   QString m_youtubeAccountName;
   QString m_youtubeChannelHandle;
-  QString m_youtubeUserCode;
-  QString m_youtubeVerificationUrl;
-  QString m_youtubeDeviceCode;
   QVariantList m_youtubePlaylists;
   QVariantList m_youtubeSubscriptions;
 };

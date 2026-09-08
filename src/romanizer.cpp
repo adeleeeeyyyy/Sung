@@ -495,6 +495,11 @@ bool Romanizer::containsNonLatin(const QString &text) {
   return ::containsNonLatin(text);
 }
 
+QString Romanizer::romanizeLine(const QString &line) {
+  return ::romanizeSingleLine(line);
+}
+
+
 QString Romanizer::romanizeText(const QString &text) {
   if (text.isEmpty() || !containsNonLatin(text)) {
     return text;

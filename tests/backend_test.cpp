@@ -738,7 +738,71 @@ private slots:
     b.clearLyrics();
     QVERIFY(b.displayLyricLines().isEmpty());
     QVERIFY(b.displayLyrics().isEmpty());
+
+    // Progressive Chunking & Instant Fallback Test
+    QStringList lrcLines;
+    for (int i = 0; i < 36; ++i) {
+      lrcLines.append(QString("[%1:%2.00] 君が好き %3").arg(i / 60, 2, 10, QChar('0')).arg(i % 60, 2, 10, QChar('0')).arg(i));
+    }
+    QVariantMap chunkedData;
+    chunkedData["ok"] = true;
+    chunkedData["lrc"] = lrcLines.join('\n');
+
+    b.setRomanizedLyrics(true);
+    b.applyLyrics(chunkedData);
+
+    QCOMPARE(b.displayLyricLines().size(), 36);
+    // Instant fallback check: pending lines must show original text fallback
+    QCOMPARE(b.displayLyricLines()[35].toMap().value("start").toLongLong(), 35000LL);
+    QVERIFY(b.displayLyricLines()[35].toMap().value("text").toString().contains("君が好き"));
+
+    for (int i = 0; i < 100 && b.displayLyricLines()[35].toMap().value("text").toString().contains("君が好き"); ++i) {
+      QTest::qWait(50);
+    }
+    QCOMPARE(b.displayLyricLines()[35].toMap().value("text").toString(), QString("Kimi ga suki 35"));
+
+    // Track switch safety test
+    QVariantMap songAData;
+    songAData["ok"] = true;
+    songAData["lrc"] = "[00:01.00] 祭り A";
+    b.applyLyrics(songAData);
+    b.clearLyrics();
+
+    QVariantMap songBData;
+    songBData["ok"] = true;
+    songBData["lrc"] = "[00:01.00] 愛してる B";
+    b.applyLyrics(songBData);
+
+    for (int i = 0; i < 100 && b.displayLyricLines()[0].toMap().value("text").toString().contains("愛してる"); ++i) {
+      QTest::qWait(50);
+    }
+    QCOMPARE(b.displayLyricLines()[0].toMap().value("text").toString(), QString("Aishiteru B"));
+
     b.setRomanizedLyrics(false);
+  }
+  void personalizedHomeTest() {
+    qputenv("SUNG_HELPER", qgetenv("SUNG_FIXTURE_HELPER"));
+    qputenv("SUNG_PYTHON", "python3");
+    Backend b;
+    QTemporaryDir files;
+    auto path = files.filePath("cookies.txt");
+    QFile f(path); QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\ttest\tfixture\n"); f.close();
+
+    b.setCookieFile(QUrl::fromLocalFile(path));
+    b.home();
+    QTRY_VERIFY_WITH_TIMEOUT(!b.busy(), 5000);
+    QVERIFY(!b.sections().isEmpty());
+    QCOMPARE(b.m_request.value("cookies").toString(), b.cookies());
+
+    b.refresh();
+    QCOMPARE(b.m_request.value("cookies").toString(), b.cookies());
+
+    b.clearCookies();
+    b.home();
+    QTRY_VERIFY_WITH_TIMEOUT(!b.busy(), 5000);
+    QVERIFY(!b.m_request.contains("cookies"));
+    b.clearCookies();
   }
   void localFilesSortingTest() {
     Backend b;
@@ -826,19 +890,20 @@ private slots:
   void youtubeInitialStateAndConnect() {
     Backend b;
     QVERIFY(!b.youtubeConnected());
-    QVERIFY(!b.youtubeConnecting());
     QVERIFY(!b.youtubeUseForRecommendations());
 
     b.setYoutubeUseForRecommendations(true);
     QVERIFY(b.youtubeUseForRecommendations());
 
-    b.connectYouTube();
-    QTRY_VERIFY(!b.youtubeUserCode().isEmpty());
-    b.m_youtubeDeviceCode = "dev_unittest";
+    QTemporaryDir dir;
+    QFile f(dir.filePath("cookies.txt"));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t0\tTEST\tVALUE\n");
+    f.close();
 
-    b.finishYouTubeConnect();
-    QTRY_VERIFY(b.youtubeConnected());
-    QCOMPARE(b.youtubeAccountName(), QString("YouTube User"));
+    b.setCookieFile(QUrl::fromLocalFile(f.fileName()));
+    QVERIFY(b.youtubeConnected());
+    QCOMPARE(b.youtubeAccountName(), QString("Cookies session"));
 
     b.disconnectYouTube();
     QTRY_VERIFY(!b.youtubeConnected());
@@ -861,7 +926,7 @@ private slots:
     QCOMPARE(ytSignals.size(), 4);
 
     b.disconnectYouTube();
-    QVERIFY(b.generateYouTubePersonalizationSignals().isEmpty());
+    QTRY_VERIFY(b.generateYouTubePersonalizationSignals().isEmpty());
   }
 };
 QTEST_MAIN(BackendTest)
