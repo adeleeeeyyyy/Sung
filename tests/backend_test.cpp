@@ -681,6 +681,9 @@ private slots:
     QCOMPARE(Romanizer::romanizeText("사랑해"), QString("Saranghae"));
     QCOMPARE(Romanizer::romanizeText("I love you"), QString("I love you"));
     QCOMPARE(Romanizer::romanizeText("I love you 君が好き"), QString("I love you kimi ga suki"));
+    QCOMPARE(Romanizer::romanizeText("祭り").toLower(), QString("matsuri"));
+    QCOMPARE(Romanizer::romanizeText("祭りに行こう").toLower(), QString("matsuri ni ikou"));
+    QCOMPARE(Romanizer::romanizeText("君と祭りに行く baby").toLower(), QString("kimi to matsuri ni iku baby"));
 
     // Bug 1 verification: Japanese lines must NOT leave partial Japanese script in the output
     const QString jpLine = "寝溜めした 日本語 te imi naino shitteru";
@@ -720,6 +723,10 @@ private slots:
 
     QCOMPARE(b.lyricLines()[0].toMap().value("text").toString(), QString("君が好き"));
     QCOMPARE(b.lyricLines()[1].toMap().value("text").toString(), QString("사랑해"));
+
+    for (int i = 0; i < 100 && b.displayLyricLines()[0].toMap().value("text").toString() == QString("君が好き"); ++i) {
+      QTest::qWait(50);
+    }
 
     QCOMPARE(b.displayLyricLines()[0].toMap().value("start").toLongLong(), 1000LL);
     QCOMPARE(b.displayLyricLines()[0].toMap().value("text").toString(), QString("Kimi ga suki"));
@@ -814,6 +821,47 @@ private slots:
     // Reset
     view->setSortKey("original");
     view->setSortReverse(false);
+  }
+
+  void youtubeInitialStateAndConnect() {
+    Backend b;
+    QVERIFY(!b.youtubeConnected());
+    QVERIFY(!b.youtubeConnecting());
+    QVERIFY(!b.youtubeUseForRecommendations());
+
+    b.setYoutubeUseForRecommendations(true);
+    QVERIFY(b.youtubeUseForRecommendations());
+
+    b.connectYouTube();
+    QTRY_VERIFY(!b.youtubeUserCode().isEmpty());
+    b.m_youtubeDeviceCode = "dev_unittest";
+
+    b.finishYouTubeConnect();
+    QTRY_VERIFY(b.youtubeConnected());
+    QCOMPARE(b.youtubeAccountName(), QString("YouTube User"));
+
+    b.disconnectYouTube();
+    QTRY_VERIFY(!b.youtubeConnected());
+    QVERIFY(b.youtubeAccountName().isEmpty());
+    QVERIFY(b.youtubePlaylists().isEmpty());
+    QVERIFY(b.youtubeSubscriptions().isEmpty());
+  }
+
+  void youtubePersonalizationSignals() {
+    Backend b;
+    b.m_youtubeConnected = true;
+    b.m_youtubePlaylists = {QVariantMap{{"title", "J-Pop Hits"}}, QVariantMap{{"title", "Rock Classics"}}};
+    b.m_youtubeSubscriptions = {QVariantMap{{"artist", "Radwimps"}}, QVariantMap{{"artist", "YOASOBI"}}};
+
+    b.setYoutubeUseForRecommendations(false);
+    QVERIFY(b.generateYouTubePersonalizationSignals().isEmpty());
+
+    b.setYoutubeUseForRecommendations(true);
+    const QVariantList ytSignals = b.generateYouTubePersonalizationSignals();
+    QCOMPARE(ytSignals.size(), 4);
+
+    b.disconnectYouTube();
+    QVERIFY(b.generateYouTubePersonalizationSignals().isEmpty());
   }
 };
 QTEST_MAIN(BackendTest)

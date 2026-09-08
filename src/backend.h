@@ -117,10 +117,34 @@ class Backend : public QObject {
   Q_PROPERTY(QStringList musicFolders READ musicFolders NOTIFY libraryChanged)
   Q_PROPERTY(bool dynamicAlbumColors READ dynamicAlbumColors WRITE setDynamicAlbumColors NOTIFY settingsChanged)
   Q_PROPERTY(QVariantMap albumColors READ albumColors NOTIFY albumColorsChanged)
-  Q_PROPERTY(bool hasAlbumColors READ hasAlbumColors NOTIFY albumColorsChanged)
   Q_PROPERTY(bool cleanupBusy READ cleanupBusy NOTIFY cleanupChanged)
   Q_PROPERTY(QVariantList cleanupItems READ cleanupItems NOTIFY cleanupChanged)
+  Q_PROPERTY(bool youtubeConnected READ youtubeConnected NOTIFY youtubeAccountChanged)
+  Q_PROPERTY(QString youtubeAccountName READ youtubeAccountName NOTIFY youtubeAccountChanged)
+  Q_PROPERTY(QString youtubeChannelHandle READ youtubeChannelHandle NOTIFY youtubeAccountChanged)
+  Q_PROPERTY(bool youtubeUseForRecommendations READ youtubeUseForRecommendations WRITE setYoutubeUseForRecommendations NOTIFY settingsChanged)
+  Q_PROPERTY(bool youtubeConnecting READ youtubeConnecting NOTIFY youtubeAccountChanged)
+  Q_PROPERTY(QString youtubeUserCode READ youtubeUserCode NOTIFY youtubeAccountChanged)
+  Q_PROPERTY(QString youtubeVerificationUrl READ youtubeVerificationUrl NOTIFY youtubeAccountChanged)
+  Q_PROPERTY(QVariantList youtubePlaylists READ youtubePlaylists NOTIFY youtubeDataChanged)
+  Q_PROPERTY(QVariantList youtubeSubscriptions READ youtubeSubscriptions NOTIFY youtubeDataChanged)
 public:
+  bool youtubeConnected() const { return m_youtubeConnected; }
+  QString youtubeAccountName() const { return m_youtubeAccountName; }
+  QString youtubeChannelHandle() const { return m_youtubeChannelHandle; }
+  bool youtubeUseForRecommendations() const { return m_settings.value("youtubeUseForRecommendations", false).toBool(); }
+  void setYoutubeUseForRecommendations(bool enabled);
+  bool youtubeConnecting() const { return m_youtubeConnecting; }
+  QString youtubeUserCode() const { return m_youtubeUserCode; }
+  QString youtubeVerificationUrl() const { return m_youtubeVerificationUrl; }
+  QVariantList youtubePlaylists() const { return m_youtubePlaylists; }
+  QVariantList youtubeSubscriptions() const { return m_youtubeSubscriptions; }
+  Q_INVOKABLE void connectYouTube();
+  Q_INVOKABLE void finishYouTubeConnect();
+  Q_INVOKABLE void cancelYouTubeConnect();
+  Q_INVOKABLE void disconnectYouTube();
+  Q_INVOKABLE void syncYouTubeData();
+  Q_INVOKABLE QVariantList generateYouTubePersonalizationSignals() const;
   QStringList musicFolders() const { return m_musicFolders; }
   bool cleanupBusy() const { return m_cleanupBusy; }
   QVariantList cleanupItems() const { return m_cleanupItems; }
@@ -339,6 +363,8 @@ signals:
   void seeked(qint64 position);
   void toast(const QString &message);
   void raiseRequested();
+  void youtubeAccountChanged();
+  void youtubeDataChanged();
 
 private:
   friend class BackendTest;
@@ -364,6 +390,7 @@ private:
   int m_importTotal=0,m_importDone=0,m_importFailed=0;
   void cancelPreparation();
   void applyLyrics(const QVariantMap &data);
+  void startAsyncRomanizationIfNeeded();
   QVariantList libraryRows(const QString &kind) const;
   void cancel(const QString &channel);
   void navigate(const QString &page, const QString &title, bool push = true);
@@ -421,4 +448,13 @@ private:
   QVariantMap m_albumColors;
   bool m_hasAlbumColors = false;
   QHash<QString, QVariantMap> m_paletteCache;
+  bool m_youtubeConnected = false;
+  bool m_youtubeConnecting = false;
+  QString m_youtubeAccountName;
+  QString m_youtubeChannelHandle;
+  QString m_youtubeUserCode;
+  QString m_youtubeVerificationUrl;
+  QString m_youtubeDeviceCode;
+  QVariantList m_youtubePlaylists;
+  QVariantList m_youtubeSubscriptions;
 };

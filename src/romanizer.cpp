@@ -1,10 +1,20 @@
 #include "romanizer.h"
-#include <QRegularExpression>
+#include <QCoreApplication>
+#include <QFile>
 #include <QHash>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QProcess>
+#include <QRegularExpression>
 #include <QStringList>
 #include <algorithm>
 
 namespace {
+
+static QHash<QString, QString> s_romanizeCache;
+static QMutex s_cacheMutex;
 
 struct KoreanData {
   static const QStringList &choseong() {
@@ -85,24 +95,26 @@ QString romanizeKoreanWord(const QString &word) {
 
 const QHash<QString, QString> &japaneseWordDict() {
   static const QHash<QString, QString> dict = {
-      {"ありがとう", "arigatou"}, {"夜に駆ける", "yoru ni kakeru"}, {"君のことが好き", "kimi no koto ga suki"},
-      {"君が好き", "kimi ga suki"}, {"愛してる", "aishiteru"}, {"寝溜めした", "nedame shita"},
-      {"寝溜め", "nedame"}, {"意味無いの", "imi naino"}, {"意味無い", "imi nai"}, {"意味", "imi"},
-      {"知ってる", "shitteru"}, {"焦りが", "aseri ga"}, {"焦り", "aseri"}, {"はみ出した", "hamidashita"},
-      {"日差し", "hizashi"}, {"眩しい", "mabushii"}, {"体", "karada"}, {"だる重", "daru omo"},
-      {"感情", "kanjou"}, {"モドキ", "modoki"}, {"踊ったとて", "odotta tote"}, {"何者", "nanimono"},
-      {"今更", "imasara"}, {"引き下がれない", "hikisagarenai"}, {"皆が寝静まれば", "mina ga neshizumareba"},
-      {"寝静まれば", "neshizumareba"}, {"出番来る", "deban kuru"}, {"出番", "deban"}, {"来る", "kuru"},
-      {"冴えない", "saenai"}, {"踊り明かすからね", "odoriakasu kara ne"}, {"踊り明かす", "odoriakasu"},
-      {"海馬まで", "kaiba made"}, {"海馬", "kaiba"}, {"灰だらけ", "haidarake"}, {"わかった気になれんのかね", "wakatta ki ni naren no ka ne"},
-      {"夜は情け", "yoru wa nasake"}, {"情け", "nasake"}, {"肺が鳴け", "hai ga nake"}, {"肺", "hai"},
-      {"鳴け", "nake"}, {"ネット上", "netto jou"}, {"息してる", "iki shiteru"}, {"結んで開いて", "musunde hiraite"},
-      {"顔も見えない", "kao mo mienai"}, {"助言", "jogen"}, {"一過性", "ikkasei"}, {"エンカウント", "enkaunto"},
-      {"通じ合えない", "tsuujiaenai"}, {"礼儀", "reigi"}, {"命令通り", "meireidoori"}, {"傷んでく", "itandeku"},
-      {"腐ってく", "kusatteku"}, {"綺羅キラ星", "kirakira hoshi"}, {"綺羅", "kira"}, {"キラ星", "kirahoshi"},
-      {"吸って吐いて", "sutte haite"}, {"貸し借り", "kashikari"}, {"段々", "dandan"}, {"ステップ複雑", "suteppu fukuzatsu"},
-      {"複雑", "fukuzatsu"}, {"刻み込まれてしまった", "kizamikomarete shimatta"}, {"惨め", "mijime"},
-      {"庇った", "kabatta"}, {"葬", "hou"}, {"過去問", "kakomon"}, {"解いて", "toite"}, {"夜明け", "yoake"},
+      {"祭り", "matsuri"}, {"祭りに", "matsuri ni"}, {"祭りに行く", "matsuri ni iku"}, {"祭りが", "matsuri ga"},
+      {"祭りの", "matsuri no"}, {"祭", "matsuri"}, {"ありがとう", "arigatou"}, {"夜に駆ける", "yoru ni kakeru"},
+      {"君のことが好き", "kimi no koto ga suki"}, {"君が好き", "kimi ga suki"}, {"愛してる", "aishiteru"},
+      {"寝溜めした", "nedame shita"}, {"寝溜め", "nedame"}, {"意味無いの", "imi naino"}, {"意味無い", "imi nai"},
+      {"意味", "imi"}, {"知ってる", "shitteru"}, {"焦りが", "aseri ga"}, {"焦り", "aseri"},
+      {"はみ出した", "hamidashita"}, {"日差し", "hizashi"}, {"眩しい", "mabushii"}, {"体", "karada"},
+      {"だる重", "daru omo"}, {"感情", "kanjou"}, {"モドキ", "modoki"}, {"踊ったとて", "odotta tote"},
+      {"何者", "nanimono"}, {"今更", "imasara"}, {"引き下がれない", "hikisagarenai"},
+      {"皆が寝静まれば", "mina ga neshizumareba"}, {"寝静まれば", "neshizumareba"}, {"出番来る", "deban kuru"},
+      {"出番", "deban"}, {"来る", "kuru"}, {"冴えない", "saenai"}, {"踊り明かすからね", "odoriakasu kara ne"},
+      {"踊り明かす", "odoriakasu"}, {"海馬まで", "kaiba made"}, {"海馬", "kaiba"}, {"灰だらけ", "haidarake"},
+      {"わかった気になれんのかね", "wakatta ki ni naren no ka ne"}, {"夜は情け", "yoru wa nasake"},
+      {"情け", "nasake"}, {"肺が鳴け", "hai ga nake"}, {"肺", "hai"}, {"鳴け", "nake"}, {"ネット上", "netto jou"},
+      {"息してる", "iki shiteru"}, {"結んで開いて", "musunde hiraite"}, {"顔も見えない", "kao mo mienai"},
+      {"助言", "jogen"}, {"一過性", "ikkasei"}, {"エンカウント", "enkaunto"}, {"通じ合えない", "tsuujiaenai"},
+      {"礼儀", "reigi"}, {"命令通り", "meireidoori"}, {"傷んでく", "itandeku"}, {"腐ってく", "kusatteku"},
+      {"綺羅キラ星", "kirakira hoshi"}, {"綺羅", "kira"}, {"キラ星", "kirahoshi"}, {"吸って吐いて", "sutte haite"},
+      {"貸し借り", "kashikari"}, {"段々", "dandan"}, {"ステップ複雑", "suteppu fukuzatsu"}, {"複雑", "fukuzatsu"},
+      {"刻み込まれてしまった", "kizamikomarete shimatta"}, {"惨め", "mijime"}, {"庇った", "kabatta"},
+      {"葬", "hou"}, {"過去問", "kakomon"}, {"解いて", "toite"}, {"夜明け", "yoake"},
       {"残酷な天使のテーゼ", "zankoku na tenshi no teeze"}, {"残酷な", "zankoku na"}, {"天使の", "tenshi no"},
       {"テーゼ", "teeze"}, {"少年よ", "shounen yo"}, {"神話になれ", "shinwa ni nare"}, {"神話", "shinwa"},
       {"少年", "shounen"}, {"蒼い風", "aoi kaze"}, {"胸のドア", "mune no doa"}, {"叩いても", "tadaitemo"},
@@ -128,7 +140,7 @@ const QHash<QString, QString> &japaneseWordDict() {
 
 const QHash<QString, QString> &kanjiSingleDict() {
   static const QHash<QString, QString> dict = {
-      {"愛", "ai"}, {"気", "ki"}, {"心", "kokoro"}, {"人", "hito"}, {"日", "hi"}, {"月", "tsuki"},
+      {"祭", "matsuri"}, {"愛", "ai"}, {"気", "ki"}, {"心", "kokoro"}, {"人", "hito"}, {"日", "hi"}, {"月", "tsuki"},
       {"火", "hi"}, {"水", "mizu"}, {"木", "ki"}, {"金", "kin"}, {"土", "tsuchi"}, {"天", "ten"},
       {"地", "chi"}, {"男", "otoko"}, {"女", "onna"}, {"子", "ko"}, {"目", "me"}, {"手", "te"},
       {"足", "ashi"}, {"耳", "mimi"}, {"口", "kuchi"}, {"顔", "kao"}, {"頭", "atama"}, {"声", "koe"},
@@ -219,13 +231,78 @@ const QHash<QString, QString> &singleKanaMap() {
       {"ラ", "ra"}, {"リ", "ri"}, {"ル", "ru"}, {"レ", "re"}, {"ロ", "ro"},
       {"ワ", "wa"}, {"ヲ", "wo"}, {"ン", "n"},
       {"ガ", "ga"}, {"ギ", "gi"}, {"グ", "gu"}, {"ゲ", "ge"}, {"ゴ", "go"},
-      {"ザ", "za"}, {"ジ", "ji"}, {"ズ", "zu"}, {"ゼ", "ze"}, {"ゾ", "zo"},
+      {"ザ", "za"}, {"ジ", "ji"}, {"ズ", "zu"}, {"ゼ", "ze"}, {"ぞ", "zo"},
       {"ダ", "da"}, {"ヂ", "ji"}, {"ヅ", "zu"}, {"デ", "de"}, {"ド", "do"},
       {"バ", "ba"}, {"ビ", "bi"}, {"ブ", "bu"}, {"ベ", "be"}, {"ボ", "bo"},
       {"パ", "pa"}, {"ピ", "pi"}, {"プ", "pu"}, {"ペ", "pe"}, {"ポ", "po"},
       {"ァ", "a"}, {"ィ", "i"}, {"ゥ", "u"}, {"ェ", "e"}, {"ォ", "o"}
   };
   return map;
+}
+
+QString callPythonRomanizer(const QString &text) {
+  if (text.isEmpty()) {
+    return text;
+  }
+
+  {
+    QMutexLocker locker(&s_cacheMutex);
+    if (s_romanizeCache.contains(text)) {
+      return s_romanizeCache.value(text);
+    }
+  }
+
+  QString python = qEnvironmentVariable("SUNG_PYTHON");
+  if (python.isEmpty()) {
+    const QString appDir = QCoreApplication::applicationDirPath();
+    const QString bundled = appDir + "/../runtime/bin/python";
+    python = QFile::exists(bundled) ? bundled : QStringLiteral("python3");
+  }
+
+  const QString helper = QCoreApplication::applicationDirPath() + "/../helper/romanize.py";
+  if (!QFile::exists(helper)) {
+    return QString();
+  }
+
+  QProcess proc;
+  proc.start(python, {helper});
+  if (!proc.waitForStarted(1000)) {
+    return QString();
+  }
+
+  QJsonObject req;
+  req["action"] = "romanize";
+  req["text"] = text;
+
+  proc.write(QJsonDocument(req).toJson(QJsonDocument::Compact));
+  proc.closeWriteChannel();
+
+  if (!proc.waitForFinished(3000)) {
+    proc.kill();
+    return QString();
+  }
+
+  if (proc.exitCode() != 0) {
+    return QString();
+  }
+
+  const QByteArray output = proc.readAllStandardOutput();
+  const QJsonDocument doc = QJsonDocument::fromJson(output);
+  if (!doc.isObject()) {
+    return QString();
+  }
+
+  const QJsonObject resp = doc.object();
+  if (!resp.value("ok").toBool()) {
+    return QString();
+  }
+
+  const QString res = resp.value("result").toString();
+  if (!res.isEmpty()) {
+    QMutexLocker locker(&s_cacheMutex);
+    s_romanizeCache.insert(text, res);
+  }
+  return res;
 }
 
 QString romanizeJapaneseSegment(const QString &segment) {
@@ -256,8 +333,7 @@ QString romanizeJapaneseSegment(const QString &segment) {
       if (kDict.contains(s)) {
         step2 += " " + kDict.value(s) + " ";
       } else {
-        // Fallback reading so no raw Kanji remains
-        step2 += " ka ";
+        step2 += " ";
       }
     } else {
       step2 += ch;
@@ -269,12 +345,11 @@ QString romanizeJapaneseSegment(const QString &segment) {
   out.reserve(step2.size() * 2);
 
   for (int i = 0; i < step2.size(); ++i) {
-    // Check 2-character Yōon pair
     if (i + 1 < step2.size()) {
       const QString pair = step2.mid(i, 2);
       if (yMap.contains(pair)) {
         out += yMap.value(pair);
-        i++; // skip next char
+        i++;
         continue;
       }
     }
@@ -282,9 +357,7 @@ QString romanizeJapaneseSegment(const QString &segment) {
     const QChar ch = step2[i];
     const QString chStr(ch);
 
-    // Sokuon 'っ' / 'ッ'
     if (ch == QChar(0x3063) || ch == QChar(0x30C3)) {
-      // Peek next Romaji consonant if available
       if (i + 1 < step2.size()) {
         const QString nextPair = (i + 2 < step2.size()) ? step2.mid(i + 1, 2) : QString();
         const QString nextSingle = step2.mid(i + 1, 1);
@@ -307,7 +380,6 @@ QString romanizeJapaneseSegment(const QString &segment) {
       continue;
     }
 
-    // Chōonpu 'ー'
     if (ch == QChar(0x30FC)) {
       if (!out.isEmpty()) {
         const QChar last = out[out.size() - 1];
@@ -319,7 +391,6 @@ QString romanizeJapaneseSegment(const QString &segment) {
       continue;
     }
 
-    // Single Kana
     if (sMap.contains(chStr)) {
       out += sMap.value(chStr);
     } else {
@@ -341,12 +412,12 @@ bool containsNonLatin(const QString &str) {
   return false;
 }
 
+
 QString romanizeSingleLine(const QString &line) {
   if (line.isEmpty() || !containsNonLatin(line)) {
     return line;
   }
 
-  // Classify mixed line into segments
   enum Script { Latin, Korean, Japanese };
 
   struct Segment {
@@ -388,13 +459,24 @@ QString romanizeSingleLine(const QString &line) {
 
   QString out;
   for (const auto &seg : segments) {
+    QString converted;
     if (seg.script == Script::Korean) {
-      out += romanizeKoreanWord(seg.text);
+      converted = romanizeKoreanWord(seg.text);
     } else if (seg.script == Script::Japanese) {
-      out += romanizeJapaneseSegment(seg.text);
+      const QString pyRes = callPythonRomanizer(seg.text);
+      if (!pyRes.isEmpty()) {
+        converted = pyRes;
+      } else {
+        converted = romanizeJapaneseSegment(seg.text);
+      }
     } else {
-      out += seg.text;
+      converted = seg.text;
     }
+
+    if (!out.isEmpty() && !out.endsWith(' ') && !converted.isEmpty() && !converted.startsWith(' ')) {
+      out += " ";
+    }
+    out += converted;
   }
 
   static const QRegularExpression multiSpace(R"(\s+)");
@@ -408,6 +490,10 @@ QString romanizeSingleLine(const QString &line) {
 }
 
 } // namespace
+
+bool Romanizer::containsNonLatin(const QString &text) {
+  return ::containsNonLatin(text);
+}
 
 QString Romanizer::romanizeText(const QString &text) {
   if (text.isEmpty() || !containsNonLatin(text)) {

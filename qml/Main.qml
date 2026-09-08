@@ -663,7 +663,37 @@ ApplicationWindow {
                 MSwitch { text: "Prepare next track"; checked: app.prepareNext; onToggled: app.prepareNext=checked }
                 MSwitch { text: "Find missing lyrics on LRCLIB"; checked: app.lyricsFallback; onToggled: app.lyricsFallback=checked }
                 MSwitch { objectName: "romanizedLyricsSettingSwitch"; text: "Romanized lyrics"; checked: app.romanizedLyrics; onToggled: app.romanizedLyrics=checked }
-                SungText { text: "YouTube"; font.pixelSize: 16; font.weight: Font.Medium; Layout.topMargin: 8 }
+                SungText { text: "YouTube Account"; font.pixelSize: 16; font.weight: Font.Medium; Layout.topMargin: 8 }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    visible: !app.youtubeConnected && !app.youtubeConnecting
+                    SungText { text: "Connect your YouTube account to personalize music recommendations and access your YouTube playlists."; wrapMode: Text.Wrap; Layout.fillWidth: true; color: Theme.muted; font.pixelSize: 12 }
+                    MButton { objectName: "connectYouTubeButton"; text: "Connect YouTube account"; tonal: true; onClicked: app.connectYouTube() }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    visible: app.youtubeConnecting
+                    SungText { text: app.youtubeUserCode ? ("Visit " + app.youtubeVerificationUrl + " and enter code:") : "Obtaining authorization code..." ; wrapMode: Text.Wrap; Layout.fillWidth: true; font.pixelSize: 13 }
+                    SungText { text: app.youtubeUserCode; font.pixelSize: 22; font.weight: Font.Bold; color: Theme.primary; visible: !!app.youtubeUserCode }
+                    RowLayout {
+                        spacing: 8
+                        MButton { objectName: "openVerificationUrlButton"; text: "Open link"; tonal: true; visible: !!app.youtubeVerificationUrl; onClicked: Qt.openUrlExternally(app.youtubeVerificationUrl) }
+                        MButton { objectName: "confirmYouTubeConnectionButton"; text: "Confirm connection"; tonal: true; visible: !!app.youtubeUserCode; onClicked: app.finishYouTubeConnect() }
+                        MButton { objectName: "cancelYouTubeConnectionButton"; text: "Cancel"; onClicked: app.cancelYouTubeConnect() }
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    visible: app.youtubeConnected
+                    SungText { text: "Connected: " + (app.youtubeAccountName || "YouTube User") + (app.youtubeChannelHandle ? (" (" + app.youtubeChannelHandle + ")") : ""); font.pixelSize: 13; font.weight: Font.Medium; color: Theme.text }
+                    MSwitch { objectName: "youtubeRecommendationsSwitch"; text: "Use YouTube data for recommendations"; checked: app.youtubeUseForRecommendations; onToggled: app.youtubeUseForRecommendations = checked }
+                    RowLayout {
+                        spacing: 8
+                        MButton { objectName: "syncYouTubeButton"; text: "Sync library"; tonal: true; onClicked: app.syncYouTubeData() }
+                        MButton { objectName: "disconnectYouTubeButton"; text: "Disconnect"; onClicked: app.disconnectYouTube() }
+                    }
+                }
+                SungText { text: "Cookies"; font.pixelSize: 14; font.weight: Font.Medium; Layout.topMargin: 4 }
                 MButton { text: app.cookies?"Replace cookies":"Import cookies"; symbol: "folder"; tonal: true; onClicked: window.openFileDialog("cookies") }
                 MButton { text: "Remove cookies"; visible: !!app.cookies; onClicked: app.clearCookies() }
                 SungText { text: "Optional cookies.txt for tracks that require sign-in. Your library stays on this device."; wrapMode: Text.Wrap; Layout.fillWidth: true; color: Theme.muted; font.pixelSize: 12 }
