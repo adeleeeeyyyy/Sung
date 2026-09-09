@@ -117,6 +117,7 @@ class Backend : public QObject {
   Q_PROPERTY(QStringList musicFolders READ musicFolders NOTIFY libraryChanged)
   Q_PROPERTY(bool dynamicAlbumColors READ dynamicAlbumColors WRITE setDynamicAlbumColors NOTIFY settingsChanged)
   Q_PROPERTY(QVariantMap albumColors READ albumColors NOTIFY albumColorsChanged)
+  Q_PROPERTY(bool hasAlbumColors READ hasAlbumColors NOTIFY albumColorsChanged)
   Q_PROPERTY(bool cleanupBusy READ cleanupBusy NOTIFY cleanupChanged)
   Q_PROPERTY(QVariantList cleanupItems READ cleanupItems NOTIFY cleanupChanged)
   Q_PROPERTY(bool youtubeConnected READ youtubeConnected NOTIFY youtubeAccountChanged)

@@ -2100,10 +2100,25 @@ void Backend::updateAlbumColors() {
               m_albumColors = newPalette;
               m_hasAlbumColors = true;
               emit albumColorsChanged();
+              return;
             }
           }
         }
+        
+        // If it failed to load or extract from network
+        if (m_hasAlbumColors) {
+          m_hasAlbumColors = false;
+          m_albumColors.clear();
+          emit albumColorsChanged();
+        }
       });
+    }
+  } else {
+    // If it's a local file and we couldn't load it
+    if (m_hasAlbumColors) {
+      m_hasAlbumColors = false;
+      m_albumColors.clear();
+      emit albumColorsChanged();
     }
   }
 }
