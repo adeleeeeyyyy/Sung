@@ -2,7 +2,9 @@
 #include <QImage>
 #include <QNetworkReply>
 #include <QPointer>
-#if __has_include(<QQuickPaintedItem>)
+#if __has_include(<QtQuick/QQuickPaintedItem>)
+#include <QtQuick/QQuickPaintedItem>
+#elif __has_include(<QQuickPaintedItem>)
 #include <QQuickPaintedItem>
 #else
 #include <QObject>

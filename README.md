@@ -108,6 +108,13 @@ Build and run from the checkout:
 ./scripts/run.sh
 ```
 
+To offload compilation to a remote build server (`ubuntu@172.23.2.209`):
+
+```bash
+./scripts/setup-build-server.sh  # First-time server toolchain setup
+./scripts/build-remote.sh        # Remote compile (outputs binary to ./build-output/sung)
+```
+
 Run automated tests:
 
 ```bash
