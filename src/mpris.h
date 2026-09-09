@@ -1,5 +1,9 @@
 #pragma once
 #include "backend.h"
+
+void registerMpris(Backend *b);
+
+#ifdef SUNG_HAS_DBUS
 #include <QDBusAbstractAdaptor>
 #include <QDBusObjectPath>
 
@@ -98,4 +102,5 @@ private:
   void changed();
   Backend *b;
 };
-void registerMpris(Backend *);
+#endif
+

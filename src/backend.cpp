@@ -24,9 +24,11 @@
 #include <QStandardPaths>
 #include <QUrlQuery>
 #include <QUuid>
+#ifdef Q_OS_UNIX
 #include <signal.h>
 #include <fcntl.h>
 #include <unistd.h>
+#endif
 
 static QString dataPath() {
   return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
@@ -98,7 +100,11 @@ Backend::Backend(QObject *parent) : QObject(parent) {
   connect(this,&Backend::lyricsChanged,this,updateLyricIndex);
   // Throttle visible progress to four updates per second, with no idle timer.
   m_positionTick.setInterval(250);
-  connect(&m_positionTick,&QTimer::timeout,this,[this]{emit positionChanged();});
+  connect(&m_positionTick, &QTimer::timeout, this, [this] {
+    emit positionChanged();
+    if (m_sleepTimer.isActive())
+      emit settingsChanged();
+  });
   connect(&m_media, &QMediaPlayer::durationChanged, this,
           &Backend::playbackChanged);
   connect(&m_media, &QMediaPlayer::playbackStateChanged, this,

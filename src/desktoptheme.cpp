@@ -22,7 +22,7 @@ DesktopTheme::DesktopTheme(QObject *parent) : QObject(parent) {
 void DesktopTheme::reload() {
   // Watch the directory as well: Noctalia can replace the file atomically.
   QString dir = QFileInfo(m_path).absolutePath();
-  while (!QFileInfo::exists(dir) && dir != "/") dir = QFileInfo(dir).absolutePath();
+  while (!QFileInfo::exists(dir) && !QDir(dir).isRoot()) dir = QFileInfo(dir).absolutePath();
   if (!m_watcher.directories().contains(dir)) m_watcher.addPath(dir);
   if (!QFileInfo::exists(m_path)) return;
   if (!m_watcher.files().contains(m_path)) m_watcher.addPath(m_path);

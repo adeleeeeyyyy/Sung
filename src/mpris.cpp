@@ -1,7 +1,10 @@
 #include "mpris.h"
+
+#ifdef SUNG_HAS_DBUS
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusMessage>
+
 void RootAdaptor::Quit() { QCoreApplication::quit(); }
 PlayerAdaptor::PlayerAdaptor(Backend *p) : QDBusAbstractAdaptor(p), b(p) {
   connect(p, &Backend::trackChanged, this, &PlayerAdaptor::changed);
@@ -49,3 +52,7 @@ void registerMpris(Backend *b) {
     bus.registerObject("/org/mpris/MediaPlayer2", b,
                        QDBusConnection::ExportAdaptors);
 }
+#else
+void registerMpris(Backend *) {}
+#endif
+

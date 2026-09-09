@@ -8,7 +8,8 @@ ApplicationWindow {
     objectName: "sungWindow"
     visible: true
     width: 1180; height: 800
-    minimumWidth: 780; minimumHeight: 580
+    minimumWidth: Qt.platform.os === "android" ? 0 : 780
+    minimumHeight: Qt.platform.os === "android" ? 0 : 580
     font.family: Theme.fontFamily
     title: app.current.title ? app.current.title + " · Sung" : "Sung"
     color: Theme.background

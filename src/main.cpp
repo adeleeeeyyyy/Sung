@@ -25,7 +25,19 @@
 #include <QStandardPaths>
 #include <QSvgRenderer>
 #include <QTimer>
+#ifdef Q_OS_UNIX
 #include <unistd.h>
+static QString userSocketName() {
+  return "sung-" + QString::number(getuid());
+}
+#else
+static QString userSocketName() {
+  QString user = qEnvironmentVariable("USERNAME");
+  if (user.isEmpty()) user = qEnvironmentVariable("USER");
+  if (user.isEmpty()) user = "default";
+  return "sung-" + user;
+}
+#endif
 #ifdef SUNG_DIAGNOSTICS
 #include "uitest.h"
 void runBenchmark(Backend *, QQuickWindow *);
@@ -87,7 +99,7 @@ int main(int argc, char **argv) {
     return 0;
   }
   QLocalSocket peer;
-  peer.connectToServer("sung-" + QString::number(getuid()));
+  peer.connectToServer(userSocketName());
   if (!args.contains("--isolated") && peer.waitForConnected(120)) {
     peer.write(args.size() > 1 ? args.last().toUtf8() : QByteArray("raise"));
     peer.flush();
@@ -96,10 +108,11 @@ int main(int argc, char **argv) {
   }
   QLocalServer server;
   if (!args.contains("--isolated")) {
-    QLocalServer::removeServer("sung-" + QString::number(getuid()));
+    QLocalServer::removeServer(userSocketName());
     server.setSocketOptions(QLocalServer::UserAccessOption);
-    server.listen("sung-" + QString::number(getuid()));
+    server.listen(userSocketName());
   }
+
   QQuickStyle::setStyle("Basic");
   QFont font(QFontDatabase::families().contains("Google Sans Flex")
                  ? "Google Sans Flex"
