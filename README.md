@@ -14,11 +14,36 @@
 ![Linux](https://img.shields.io/badge/platform-Linux-blue.svg)
 ![Qt 6](https://img.shields.io/badge/built_with-Qt_6-41CD52.svg)
 
-A minimal Material 3 player built with C++ and Qt Quick, designed for CachyOS and Wayland.
+A minimal Material 3 player built with C++ and Qt Quick, designed for Linux, Windows, macOS, and Android.
 
-[Install](#install) · [Features](#features) · [Development](#development)
+[Download Pre-built Binary](#download) · [Features](#features) · [Development](#development)
 
 </div>
+
+## Download
+
+Pre-built binary releases are available on **[GitHub Releases](https://github.com/yappologistic/Sung/releases)**.
+
+**Normal users do NOT need to clone the repository or compile from source.**
+
+### Windows
+- **x64 Installer**: Download `Sung-<version>-Windows-x64.exe` and run the installer.
+- **Portable**: Download `Sung-<version>-Windows-x64-portable.zip`, extract, and run `sung.exe`.
+
+### macOS
+- **Apple Silicon (M1/M2/M3/M4)**: Download `Sung-<version>-macOS-arm64.dmg`, open it, and drag **Sung.app** to Applications.
+- **Intel**: Download `Sung-<version>-macOS-x64.dmg`, open it, and drag **Sung.app** to Applications.
+
+### Linux
+- **AppImage (Recommended)**: Download `Sung-<version>-Linux-x86_64.AppImage`, make it executable (`chmod +x`), and run.
+- **Debian / Ubuntu**: Download `Sung-<version>-Linux-x86_64.deb` and install via `sudo dpkg -i`.
+- **Fedora / RHEL**: Download `Sung-<version>-Linux-x86_64.rpm` and install via `sudo dnf install`.
+
+### Android
+- **ARM64**: Download `Sung-<version>-Android-arm64.apk` and tap to install.
+- **x86_64**: Download `Sung-<version>-Android-x86_64.apk` for x86_64 devices/emulators.
+
+---
 
 ## Features
 
