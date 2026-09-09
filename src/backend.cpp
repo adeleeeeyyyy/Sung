@@ -48,12 +48,17 @@ Backend::Backend(QObject *parent) : QObject(parent) {
   setPreservePitch(m_settings.value("preservePitch",true).toBool());
   connect(&m_media,&QMediaPlayer::playbackRateChanged,this,&Backend::settingsChanged);
   m_collection.setSourceModel(&m_results);
-  m_collection.setSortKey(m_settings.value("collectionSort", "original").toString());
-  m_collection.setSortReverse(m_settings.value("collectionSortReverse", false).toBool());
+  m_librarySortKey = m_settings.value("collectionSort", "original").toString();
+  m_librarySortReverse = m_settings.value("collectionSortReverse", false).toBool();
+  applyCollectionSort(m_librarySortKey, m_librarySortReverse, {});
   connect(&m_collection, &CollectionView::optionsChanged, this, [this] {
-    m_settings.setValue("collectionSort", m_collection.sortKey());
-    m_settings.setValue("collectionSortReverse", m_collection.sortReverse());
-    m_saveTimer.start();
+    if (!m_ignoreSortSignal && m_page != "search") {
+      m_librarySortKey = m_collection.sortKey();
+      m_librarySortReverse = m_collection.sortReverse();
+      m_settings.setValue("collectionSort", m_librarySortKey);
+      m_settings.setValue("collectionSortReverse", m_librarySortReverse);
+      m_saveTimer.start();
+    }
   });
   connect(&m_queue,&Entries::countChanged,this,[this]{
     m_queueSuffix.fill(0,m_queue.count()+1);
@@ -250,10 +255,20 @@ QVariantMap Backend::snapshot() const {
           {"more", m_more},          {"library", m_libraryId},
           {"collectionQuery",m_collection.query()},{"collectionSort",m_collection.sortKey()}};
 }
+void Backend::applyCollectionSort(const QString &key, bool reverse, const QString &query) {
+  m_ignoreSortSignal = true;
+  m_collection.setQuery(query);
+  m_collection.setSortKey(key);
+  m_collection.setSortReverse(reverse);
+  m_ignoreSortSignal = false;
+}
 void Backend::restore(const QVariantMap &s) {
-  m_collection.setQuery(s.value("collectionQuery").toString());
-  m_collection.setSortKey(s.value("collectionSort","original").toString());
   m_page = s.value("page").toString();
+  if (m_page == "search") {
+    applyCollectionSort("original", false, {});
+  } else {
+    applyCollectionSort(m_librarySortKey, m_librarySortReverse, s.value("collectionQuery").toString());
+  }
   m_title = s.value("title").toString();
   m_cover = s.value("cover").toString();
   m_sections = s.value("sections").toList();
@@ -271,8 +286,12 @@ void Backend::navigate(const QString &page, const QString &title, bool push) {
     if (m_back.size() > 12)
       m_back.removeFirst();
   }
-  m_collection.setQuery({});m_collection.setSortKey("original");
   m_page = page;
+  if (m_page == "search") {
+    applyCollectionSort("original", false, {});
+  } else {
+    applyCollectionSort(m_librarySortKey, m_librarySortReverse, {});
+  }
   m_title = title;
   m_cover.clear();
   m_results.assign({});
@@ -332,7 +351,7 @@ void Backend::search(const QString &query, const QString &filter) {
   browseRequest({{"op", "search"},
                  {"query", query.trimmed()},
                  {"filter", filter},
-                 {"limit", 30}},
+                 {"limit", 5}},
                 m_page != "search");
 }
 void Backend::browseRequest(QVariantMap req, bool push) {
@@ -362,7 +381,7 @@ void Backend::browseRequest(QVariantMap req, bool push) {
     if (data.contains("title"))
       m_title = data.value("title").toString();
     m_cover = data.value("art").toString();
-    const auto limit = m_request.value("limit", 30).toInt();
+    const auto limit = m_request.value("limit", op == "search" ? 5 : 30).toInt();
     m_more = (op == "search" && m_results.count() >= limit && limit < 200) ||
              (op == "playlist" &&
               data.value("total").toInt() > m_results.count() && limit < 5000);
@@ -373,8 +392,9 @@ void Backend::more() {
   if (!m_more || m_busy)
     return;
   auto req = m_request;
+  const int step = (m_page == "search" ? 5 : 100);
   req["limit"] =
-      req.value("limit", 30).toInt() + (m_page == "search" ? 30 : 100);
+      req.value("limit", m_page == "search" ? 5 : 30).toInt() + step;
   browseRequest(req, false);
 }
 void Backend::refresh() {

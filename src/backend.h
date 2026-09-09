@@ -392,6 +392,7 @@ private:
   void resolveCurrent(bool retry = false);
   QVariantMap snapshot() const;
   void restore(const QVariantMap &);
+  void applyCollectionSort(const QString &key, bool reverse, const QString &query = {});
   static QVariantList playable(const QVariantList &);
   QSettings m_settings;
   PlaybackNotifier m_notifier;
@@ -400,6 +401,9 @@ private:
   Entries m_results, m_queue;
   QList<qint64> m_queueSuffix;
   CollectionView m_collection;
+  QString m_librarySortKey = "original";
+  bool m_librarySortReverse = false;
+  bool m_ignoreSortSignal = false;
   QMediaDevices m_devices;
   QVariantList m_lyricLines, m_romanizedLyricLines;
   bool m_romanizedLyricsFinished = false, m_romanizedLyricsBusy = false;

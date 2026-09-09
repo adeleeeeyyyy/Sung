@@ -262,6 +262,29 @@ private slots:
     {Backend b;b.setLyricTextSize(28);QCOMPARE(b.lyricTextSize(),28);}
     Backend b;QCOMPARE(b.lyricTextSize(),28);b.setLyricTextSize(2);QCOMPARE(b.lyricTextSize(),20);b.setLyricTextSize(100);QCOMPARE(b.lyricTextSize(),32);b.setLyricTextSize(25);
   }
+  void searchPaginationAndSortIsolationTest() {
+    Backend b;
+    b.collection()->setSortKey("duration");
+    b.collection()->setSortReverse(true);
+    QCOMPARE(b.collection()->sortKey(), QString("duration"));
+    QCOMPARE(b.collection()->sortReverse(), true);
+
+    b.search("YOASOBI");
+    QCOMPARE(b.page(), QString("search"));
+
+    QCOMPARE(b.collection()->sortKey(), QString("original"));
+    QCOMPARE(b.collection()->sortReverse(), false);
+    QCOMPARE(b.collection()->query(), QString(""));
+    QCOMPARE(b.m_request.value("limit").toInt(), 5);
+
+    b.navigate("library", "Library");
+    QCOMPARE(b.page(), QString("library"));
+    QCOMPARE(b.collection()->sortKey(), QString("duration"));
+    QCOMPARE(b.collection()->sortReverse(), true);
+
+    b.collection()->setSortKey("original");
+    b.collection()->setSortReverse(false);
+  }
   void listeningPreferences() {
     {Backend b;QVERIFY(!b.historyPaused());b.setHistoryPaused(true);b.setKeepCompletedLyrics(false);b.setVolumeStep(2);b.setVolumeStep(7);QCOMPARE(b.volumeStep(),2);}
     Backend b;QVERIFY(!b.historyPaused());QVERIFY(!b.keepCompletedLyrics());QCOMPARE(b.volumeStep(),2);b.setKeepCompletedLyrics(true);b.setVolumeStep(5);
@@ -432,17 +455,17 @@ private slots:
     b.search("latest","songs");
     QTRY_VERIFY_WITH_TIMEOUT(!b.busy(),5000);
     QCOMPARE(b.query(),"latest");
-    QCOMPARE(b.results()->count(),30);
+    QCOMPARE(b.results()->count(),5);
     QVERIFY(b.canMore());
     b.more();
     QTRY_VERIFY_WITH_TIMEOUT(!b.busy(),5000);
-    QCOMPARE(b.results()->count(),60);
+    QCOMPARE(b.results()->count(),10);
     b.open({{"kind","album"},{"browseId","ALBUM"},{"title","Album"}});
     QTRY_VERIFY_WITH_TIMEOUT(!b.busy(),5000);
     QCOMPARE(b.results()->count(),2);
     b.back();
     QCOMPARE(b.query(),"latest");
-    QCOMPARE(b.results()->count(),60);
+    QCOMPARE(b.results()->count(),10);
     b.search("error");
     QTRY_VERIFY_WITH_TIMEOUT(!b.busy(),5000);
     QVERIFY(b.canRetry());

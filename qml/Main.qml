@@ -289,11 +289,11 @@ ApplicationWindow {
                             MButton { text: "Play"; symbol: "play"; filled: true; enabled: app.collection.count>0; onClicked: app.playCollection(0) }
                             MButton { symbol: "queue"; tip: "Add displayed songs to queue"; tonal: true; enabled: app.collection.count>0; onClicked: app.enqueueCollection() }
                             Item { Layout.fillWidth: true }
-                            MButton { objectName: "collectionToolsButton"; symbol: "filter"; tip: "Find and sort songs"; selected: window.collectionTools || !!app.collection.query || app.collection.sortKey!=="original"; onClicked: {window.collectionTools=!window.collectionTools;if(window.collectionTools)Qt.callLater(()=>collectionSearch.forceActiveFocus());} }
+                            MButton { objectName: "collectionToolsButton"; symbol: "filter"; tip: "Find and sort songs"; visible: (app.page === "library" || app.page === "local" || window.destination === "library"); selected: window.collectionTools || !!app.collection.query || app.collection.sortKey!=="original"; onClicked: {window.collectionTools=!window.collectionTools;if(window.collectionTools)Qt.callLater(()=>collectionSearch.forceActiveFocus());} }
                             SungText { text: app.collection.query ? app.collection.count+" / "+app.results.count : window.countText(app.results.count); color: Theme.muted; font.pixelSize: 12 }
                         }
                         RowLayout {
-                            visible: window.hasSongCollection && window.collectionTools
+                            visible: window.hasSongCollection && window.collectionTools && (app.page === "library" || app.page === "local" || window.destination === "library")
                             Layout.fillWidth: true; spacing: 8
                             TextField {
                                 id: collectionSearch; objectName: "collectionSearch"; Layout.fillWidth: true; implicitHeight: 44
@@ -350,6 +350,11 @@ ApplicationWindow {
                                 onMenuRequested: (item,index,anchor)=>window.trackMenu(item,index,anchor,false)
                                 onRemoveSelected: {if(window.localPlaylist)app.removePlaylistRows(window.localPlaylist,sourceRows());}
                                 onAddSelected: window.addBatch(tracks)
+                                onContentYChanged: {
+                                    if (app.page === "search" && app.canMore && !app.busy && (contentY + height >= contentHeight - 120)) {
+                                        app.more();
+                                    }
+                                }
                                 footer: Item {
                                     width: tracks.width; height: app.canMore?64:0
                                     MButton { anchors.centerIn: parent; text: app.busy ? "Loading…" : "Load more"; enabled: !app.busy; tonal: true; visible: app.canMore; onClicked: app.more() }
