@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(Sung VERSION 0.11.0 LANGUAGES CXX)
+project(Sung VERSION 0.12.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,6 +42,8 @@ qt_add_executable(sung
     src/playbacknotifier.cpp
     src/playbacknotifier.h
 )
+
+target_compile_definitions(sung PRIVATE SUNG_VERSION="${PROJECT_VERSION}")
 
 target_link_libraries(sung PRIVATE Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::QuickControls2 Qt6::Multimedia Qt6::Network Qt6::Svg)
 if(SUNG_HAS_DBUS)
@@ -128,4 +130,31 @@ if(SUNG_DIAGNOSTICS)
   target_compile_definitions(sung PRIVATE SUNG_DIAGNOSTICS)
   target_link_libraries(sung PRIVATE Qt6::Test Qt6::GuiPrivate)
 endif()
+
+# CPack Packaging Configuration
+set(CPACK_PACKAGE_NAME "Sung")
+set(CPACK_PACKAGE_VENDOR "Sung")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Sleek, reactive multiplatform music player")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Sung")
+
+if(UNIX AND NOT APPLE AND NOT ANDROID)
+  set(CPACK_GENERATOR "DEB;RPM;TGZ")
+  set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Sung Developers <https://github.com>")
+  set(CPACK_DEBIAN_PACKAGE_SECTION "sound")
+  set(CPACK_DEBIAN_PACKAGE_DEPENDS "libqt6core6, libqt6gui6, libqt6quick6, libqt6multimedia6, libqt6network6, libqt6svg6")
+  set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+  set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
+elseif(WIN32)
+  set(CPACK_GENERATOR "ZIP;NSIS")
+elseif(APPLE)
+  set(CPACK_GENERATOR "DragNDrop;ZIP")
+endif()
+
+include(CPack)
+
 

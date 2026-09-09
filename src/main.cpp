@@ -91,11 +91,15 @@ int main(int argc, char **argv) {
   app.setApplicationName("sung");
   app.setApplicationDisplayName("Sung");
   app.setOrganizationName("Sung");
-  app.setApplicationVersion("0.11.0");
+#ifndef SUNG_VERSION
+#define SUNG_VERSION "0.12.0"
+#endif
+
+  app.setApplicationVersion(SUNG_VERSION);
   app.setDesktopFileName("sung");
   const auto args = app.arguments();
   if (args.contains("--version")) {
-    fprintf(stdout, "Sung 0.11.0\n");
+    fprintf(stdout, "Sung %s\n", SUNG_VERSION);
     return 0;
   }
   QLocalSocket peer;
