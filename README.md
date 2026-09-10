@@ -2,17 +2,13 @@
 
 <img src="assets/readme-banner.png" alt="Sung showing music collections and synchronized lyrics" width="100%">
 
-<a href="https://buymeacoffee.com/e_gurl">
-  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Support Sung on Buy Me a Coffee" width="217" height="60">
-</a>
-
 # Sung
 
-**YouTube Music and your own music. Native on Linux.**
+**YouTube Music and your own music. Multiplatform.**
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-![Linux](https://img.shields.io/badge/platform-Linux-blue.svg)
-![Qt 6](https://img.shields.io/badge/built_with-Qt_6-41CD52.svg)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS%20%7C%20Android-blue.svg)
+![Qt 6](https://img.shields.io/badge/built_with-Qt_6.4%2B-41CD52.svg)
 
 A minimal Material 3 player built with C++ and Qt Quick, designed for Linux, Windows, macOS, and Android.
 
@@ -22,7 +18,7 @@ A minimal Material 3 player built with C++ and Qt Quick, designed for Linux, Win
 
 ## Download
 
-Pre-built binary releases are available on **[GitHub Releases](https://github.com/yappologistic/Sung/releases)**.
+Pre-built binary releases are available on **[GitHub Releases](https://github.com/adeleeeeyyyy/Sung/releases)**.
 
 **Normal users do NOT need to clone the repository or compile from source.**
 
@@ -49,10 +45,10 @@ Pre-built binary releases are available on **[GitHub Releases](https://github.co
 
 - **YouTube Music** — search songs, albums, artists and playlists; play audio without an embedded browser or ad interface.
 - **Your music** — import FLAC, MP3 and other supported audio files or folders. Mix local and YouTube songs in the same playlists.
-- **Lyrics** — synchronized lyrics, an immersive view, timing adjustments, LRC import and search with jump-to-line playback.
+- **Lyrics & Romanization** — synchronized lyrics, immersive view, timing adjustments, LRC import and search with automatic Japanese & Korean text romanization.
 - **Library tools** — likes, listening history, smart mixes, playlist cleanup, multi-selection, drag reordering and Undo.
 - **Playback controls** — mini player, queue editing, shuffle, repeat, sleep timer, playback speed and audio-device selection.
-- **Desktop integration** — media keys through MPRIS, optional notifications, light/dark themes and Noctalia palette support.
+- **Desktop integration** — media keys through MPRIS, optional notifications, dynamic Material 3 album color palettes, light/dark themes and Noctalia palette support.
 
 Native rendering, one audio decoder and bounded artwork caches keep Sung lightweight. Animations can be disabled in Settings.
 
@@ -69,7 +65,7 @@ sudo pacman -S --needed git base-devel cmake ninja python nodejs ffmpeg qt6-base
 Download and install Sung:
 
 ```bash
-git clone https://github.com/yappologistic/Sung.git
+git clone https://github.com/adeleeeeyyyy/Sung.git
 cd Sung
 ./scripts/install.sh
 ```
@@ -84,7 +80,7 @@ Installation is per-user in `~/.local`; do not run the install script with `sudo
 
 ### Other Linux distributions
 
-Install the equivalent development packages for **Qt 6.8+** (Core, Gui, Quick, Qml, QuickControls2, Multimedia, Network, DBus, Svg and Wayland), a C++20 compiler, CMake 3.24+, Ninja, Python 3 with `venv`/`pip`, Node.js 20+ and FFmpeg. Then follow the clone and install commands above.
+Install the equivalent development packages for **Qt 6.4+** (Core, Gui, Quick, Qml, QuickControls2, Multimedia, Network, DBus, Svg and Wayland), a C++20 compiler, CMake 3.24+, Ninja, Python 3 with `venv`/`pip`, Node.js 20+ and FFmpeg. Then follow the clone and install commands above.
 
 Sung uses Google Sans Flex when installed and otherwise falls back to a system font. Noctalia is optional.
 
@@ -133,7 +129,7 @@ Build and run from the checkout:
 ./scripts/run.sh
 ```
 
-To offload compilation to a remote build server (`ubuntu@172.23.2.209`):
+To offload compilation to a remote build server:
 
 ```bash
 ./scripts/setup-build-server.sh  # First-time server toolchain setup
@@ -154,3 +150,4 @@ Reports and screenshots are written to the ignored `verification/` directory. Do
 ## License
 
 [MIT](LICENSE). Material Symbols are licensed under Apache-2.0; see [NOTICE](NOTICE) for third-party acknowledgments. Sung is an independent project and is not affiliated with Google or YouTube.
+
