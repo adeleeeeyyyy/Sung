@@ -36,7 +36,7 @@ jobs:
       - name: Setup Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.*'
+          version: '6.11.*'
           arch: 'gcc_64'
           modules: 'qtmultimedia qtsvg'
 
@@ -92,7 +92,7 @@ jobs:
       - name: Setup Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.*'
+          version: '6.11.*'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
@@ -158,7 +158,7 @@ jobs:
       - name: Setup Qt for Android
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.*'
+          version: '6.11.*'
           target: 'android'
           arch: '${{ env.QT_ANDROID_ARCH }}'
           modules: 'qtmultimedia qtsvg'
