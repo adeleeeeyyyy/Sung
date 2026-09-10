@@ -33,6 +33,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.0'
+          arch: 'gcc_64'
           modules: 'qtmultimedia qtsvg'
 
       - name: Build CPack (DEB & RPM)
@@ -86,7 +87,7 @@ jobs:
           version: '6.8.0'
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2022_64'
+          arch: 'win64_msvc2019_64'
           modules: 'qtmultimedia qtsvg'
 
       - name: Setup MSVC
@@ -135,6 +136,7 @@ jobs:
           version: '6.8.0'
           host: 'mac'
           target: 'desktop'
+          arch: 'clang_64'
           modules: 'qtmultimedia qtsvg'
 
       - name: Build DMG
@@ -166,7 +168,9 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           ANDROID_ABI=$([ "${{ matrix.abi }}" = "arm64" ] && echo "arm64-v8a" || echo "x86_64")
+          QT_ANDROID_ARCH=$([ "${{ matrix.abi }}" = "arm64" ] && echo "android_arm64_v8a" || echo "android_x86_64")
           echo "ANDROID_ABI=$ANDROID_ABI" >> $GITHUB_ENV
+          echo "QT_ANDROID_ARCH=$QT_ANDROID_ARCH" >> $GITHUB_ENV
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -184,7 +188,7 @@ jobs:
         with:
           version: '6.8.0'
           target: 'android'
-          arch: 'android_${{ env.ANDROID_ABI }}'
+          arch: '${{ env.QT_ANDROID_ARCH }}'
           modules: 'qtmultimedia qtsvg'
 
       - name: Build APK
@@ -231,7 +235,6 @@ jobs:
         run: |
           cd release-assets
           ls -la
-          # Fail if no artifacts exist
           if [ $(ls -1 | wc -l) -eq 0 ]; then
             echo "::error::No release artifacts found! Build failed."
             exit 1

@@ -24,6 +24,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.0'
+          arch: 'gcc_64'
           modules: 'qtmultimedia qtsvg'
 
       - name: Configure CMake
@@ -48,7 +49,7 @@ jobs:
           version: '6.8.0'
           host: 'windows'
           target: 'desktop'
-          arch: 'win64_msvc2022_64'
+          arch: 'win64_msvc2019_64'
           modules: 'qtmultimedia qtsvg'
 
       - name: Setup MSVC
@@ -73,6 +74,7 @@ jobs:
           version: '6.8.0'
           host: 'mac'
           target: 'desktop'
+          arch: 'clang_64'
           modules: 'qtmultimedia qtsvg'
 
       - name: Configure CMake
