@@ -1,0 +1,251 @@
+name: Automated Multiplatform Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux Assets (x86_64)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential libgl1-mesa-dev \
+            libpulse-dev libasound2-dev file rpm
+
+      - name: Setup Qt
+        uses: mechatrax/setup-qt-action@v3
+        with:
+          qt-version: '6.8.0'
+          modules: 'qtmultimedia qtsvg'
+
+      - name: Build CPack (DEB & RPM)
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel
+          cpack --config build/CPackConfig.cmake
+          mv build/*.deb Sung-${{ env.VERSION }}-Linux-x86_64.deb || true
+          mv build/*.rpm Sung-${{ env.VERSION }}-Linux-x86_64.rpm || true
+
+      - name: Build AppImage
+        run: |
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy*.AppImage
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/scalable/apps
+          cp build/sung AppDir/usr/bin/
+          cp assets/sung.desktop AppDir/usr/share/applications/
+          cp assets/sung.svg AppDir/usr/share/icons/hicolor/scalable/apps/
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin qt --output appimage || true
+          if [ -f Sung*.AppImage ]; then
+            mv Sung*.AppImage Sung-${{ env.VERSION }}-Linux-x86_64.AppImage
+          fi
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            Sung-${{ env.VERSION }}-Linux-x86_64.AppImage
+            Sung-${{ env.VERSION }}-Linux-x86_64.deb
+            Sung-${{ env.VERSION }}-Linux-x86_64.rpm
+
+  build-windows:
+    name: Build Windows Assets (x64)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Version
+        id: version
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Setup Qt
+        uses: mechatrax/setup-qt-action@v3
+        with:
+          qt-version: '6.8.0'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtmultimedia qtsvg'
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build & Package
+        shell: bash
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -G "Ninja"
+          cmake --build build
+          mkdir -p dist
+          cp build/sung.exe dist/
+          windeployqt --compiler-runtime --qmldir qml dist/sung.exe
+          cd dist && 7z a ../Sung-${{ env.VERSION }}-Windows-x64-portable.zip * && cd ..
+          cp build/sung.exe Sung-${{ env.VERSION }}-Windows-x64.exe
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            Sung-${{ env.VERSION }}-Windows-x64.exe
+            Sung-${{ env.VERSION }}-Windows-x64-portable.zip
+
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-14
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          ARCH_MAC=$([ "${{ matrix.arch }}" = "x64" ] && echo "x86_64" || echo "arm64")
+          echo "ARCH_MAC=$ARCH_MAC" >> $GITHUB_ENV
+
+      - name: Setup Qt
+        uses: mechatrax/setup-qt-action@v3
+        with:
+          qt-version: '6.8.0'
+          host: 'mac'
+          target: 'desktop'
+          modules: 'qtmultimedia qtsvg'
+
+      - name: Build DMG
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=${{ env.ARCH_MAC }}
+          cmake --build build --parallel
+          macdeployqt build/Sung.app -qmldir=qml -dmg || true
+          mv build/Sung.dmg Sung-${{ env.VERSION }}-macOS-${{ matrix.arch }}.dmg || true
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}-artifacts
+          path: Sung-${{ env.VERSION }}-macOS-${{ matrix.arch }}.dmg
+
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        abi: [arm64, x86_64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          ANDROID_ABI=$([ "${{ matrix.abi }}" = "arm64" ] && echo "arm64-v8a" || echo "x86_64")
+          echo "ANDROID_ABI=$ANDROID_ABI" >> $GITHUB_ENV
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android NDK
+        uses: nsetup/setup-android-ndk@v1
+        with:
+          ndk-version: 'r25c'
+
+      - name: Setup Qt for Android
+        uses: mechatrax/setup-qt-action@v3
+        with:
+          qt-version: '6.8.0'
+          target: 'android'
+          arch: 'android_${{ env.ANDROID_ABI }}'
+          modules: 'qtmultimedia qtsvg'
+
+      - name: Build APK
+        run: |
+          cmake -B build-android -S . \
+            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=${{ env.ANDROID_ABI }} \
+            -DANDROID_PLATFORM=android-28 \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-android --target create-apk || true
+          find build-android -name "*.apk" -exec cp {} Sung-${{ env.VERSION }}-Android-${{ matrix.abi }}.apk \; || true
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.abi }}-artifacts
+          path: Sung-${{ env.VERSION }}-Android-${{ matrix.abi }}.apk
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-linux, build-windows, build-macos, build-android]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Prerelease Tag
+        id: prerelease
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          if [[ "$TAG" =~ - ]]; then
+            echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+          else
+            echo "IS_PRERELEASE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Download All Release Assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Validate Release Artifacts & Generate SHA256SUMS
+        run: |
+          cd release-assets
+          ls -la
+          # Fail if no artifacts exist
+          if [ $(ls -1 | wc -l) -eq 0 ]; then
+            echo "::error::No release artifacts found! Build failed."
+            exit 1
+          fi
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ env.IS_PRERELEASE == 'true' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

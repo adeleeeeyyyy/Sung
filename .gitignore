@@ -12,6 +12,11 @@
 !/tests/
 !/assets/
 !/licenses/
+!/.github/
+
+/.github/*
+!/.github/workflows/
+!/.github/workflows/*.yml
 
 /src/*
 !/src/*.cpp
