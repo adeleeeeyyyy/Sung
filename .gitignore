@@ -42,14 +42,60 @@
 /licenses/*
 !/licenses/MaterialSymbols-LICENSE.txt
 
-# Private state, credentials, build products and editor/assistant files.
+# Build output & packages
+/build/
+/build-*/
+/build-output/
+/build-tests/
+/_CPack_Packages/
+/AppDir/
+/*.AppImage
+/*.deb
+/*.tar.gz
+/*.tar.xz
+/*.rpm
+/*.zip
+/*.7z
+
+# C++ & Qt build artifacts
+*.o
+*.obj
+*.so
+*.so.*
+*.a
+*.dylib
+*.dll
+*.exe
+*_autogen/
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+build.ninja
+compile_commands.json
+
+# Python virtual environments & caches
+/runtime/
+/venv/
+/.venv/
+/env/
 **/__pycache__/
 *.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Private state, credentials, logs & local data
+library.json
+settings.json
+*.db
+*.sqlite
+*.sqlite3
 *.log
-*.user
-*.swp
-*.swo
-*~
 .env
 .env.*
 *.pem
@@ -59,13 +105,31 @@
 cookies*
 credentials*
 secrets*
-library.json
-settings.json
-.DS_Store
+
+# IDE, Editor & Assistant files
+.vscode/
+.idea/
+.qt-creator/
+.cache/
+.ccls-cache/
 .agents/
 .codex/
-.idea/
-.vscode/
+.gemini/
+.claude/
+.cursor/
+.copilot/
+*.user
+*.userosv
+*.swp
+*.swo
+*~
+*.tmp
+*.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
+.directory
 
 # README is the only Markdown file in the public repository.
 *.[mM][dD]
