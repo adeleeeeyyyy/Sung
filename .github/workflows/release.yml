@@ -20,7 +20,11 @@ jobs:
       - name: Extract Version
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Install Dependencies
@@ -32,7 +36,7 @@ jobs:
       - name: Setup Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.0'
+          version: '6.8.*'
           arch: 'gcc_64'
           modules: 'qtmultimedia qtsvg'
 
@@ -78,13 +82,17 @@ jobs:
         id: version
         shell: bash
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Setup Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.0'
+          version: '6.8.*'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
@@ -112,46 +120,6 @@ jobs:
             Sung-${{ env.VERSION }}-Windows-x64.exe
             Sung-${{ env.VERSION }}-Windows-x64-portable.zip
 
-  build-macos:
-    name: Build macOS DMG
-    runs-on: macos-14
-    strategy:
-      matrix:
-        arch: [x64, arm64]
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Extract Version
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          ARCH_MAC=$([ "${{ matrix.arch }}" = "x64" ] && echo "x86_64" || echo "arm64")
-          echo "ARCH_MAC=$ARCH_MAC" >> $GITHUB_ENV
-
-      - name: Setup Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.0'
-          host: 'mac'
-          target: 'desktop'
-          arch: 'clang_64'
-          modules: 'qtmultimedia qtsvg'
-
-      - name: Build DMG
-        run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=${{ env.ARCH_MAC }}
-          cmake --build build --parallel
-          macdeployqt build/Sung.app -qmldir=qml -dmg || true
-          mv build/Sung.dmg Sung-${{ env.VERSION }}-macOS-${{ matrix.arch }}.dmg || true
-
-      - name: Upload macOS Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-${{ matrix.arch }}-artifacts
-          path: Sung-${{ env.VERSION }}-macOS-${{ matrix.arch }}.dmg
-
   build-android:
     name: Build Android APK
     runs-on: ubuntu-22.04
@@ -165,7 +133,11 @@ jobs:
       - name: Extract Version
         id: version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="dev-$(git rev-parse --short HEAD)"
+          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           ANDROID_ABI=$([ "${{ matrix.abi }}" = "arm64" ] && echo "arm64-v8a" || echo "x86_64")
           QT_ANDROID_ARCH=$([ "${{ matrix.abi }}" = "arm64" ] && echo "android_arm64_v8a" || echo "android_x86_64")
@@ -186,7 +158,7 @@ jobs:
       - name: Setup Qt for Android
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.0'
+          version: '6.8.*'
           target: 'android'
           arch: '${{ env.QT_ANDROID_ARCH }}'
           modules: 'qtmultimedia qtsvg'
@@ -198,8 +170,13 @@ jobs:
             -DANDROID_ABI=${{ env.ANDROID_ABI }} \
             -DANDROID_PLATFORM=android-28 \
             -DCMAKE_BUILD_TYPE=Release
-          cmake --build build-android --target create-apk || true
-          find build-android -name "*.apk" -exec cp {} Sung-${{ env.VERSION }}-Android-${{ matrix.abi }}.apk \; || true
+          cmake --build build-android --target apk
+          APK_PATH=$(find build-android -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No APK was produced by the build."
+            exit 1
+          fi
+          cp "$APK_PATH" Sung-${{ env.VERSION }}-Android-${{ matrix.abi }}.apk
 
       - name: Upload Android Artifacts
         uses: actions/upload-artifact@v4
@@ -209,7 +186,8 @@ jobs:
 
   publish-release:
     name: Publish GitHub Release
-    needs: [build-linux, build-windows, build-macos, build-android]
+    needs: [build-linux, build-windows, build-android]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -246,7 +224,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
-          body_path: CHANGELOG.md
           draft: false
           prerelease: ${{ env.IS_PRERELEASE == 'true' }}
           generate_release_notes: true
