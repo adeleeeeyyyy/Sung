@@ -12,49 +12,15 @@
 
 A minimal Material 3 player built with C++ and Qt Quick, designed for Linux, Windows, macOS, and Android.
 
-[Download Pre-built Binary](#download) · [Features](#features) · [Development](#development)
+[Installation](#installation) · [Features](#features) · [Development](#development)
 
 </div>
 
-## Download
+## Installation
 
-Pre-built binary releases are available on **[GitHub Releases](https://github.com/adeleeeeyyyy/Sung/releases)**.
+Currently, Sung is installed by building from source using the provided automated scripts.
 
-**Normal users do NOT need to clone the repository or compile from source.**
-
-### Windows
-- **x64 Installer**: Download `Sung-<version>-Windows-x64.exe` and run the installer.
-- **Portable**: Download `Sung-<version>-Windows-x64-portable.zip`, extract, and run `sung.exe`.
-
-### macOS
-- **Apple Silicon (M1/M2/M3/M4)**: Download `Sung-<version>-macOS-arm64.dmg`, open it, and drag **Sung.app** to Applications.
-- **Intel**: Download `Sung-<version>-macOS-x64.dmg`, open it, and drag **Sung.app** to Applications.
-
-### Linux
-- **AppImage (Recommended)**: Download `Sung-<version>-Linux-x86_64.AppImage`, make it executable (`chmod +x`), and run.
-- **Debian / Ubuntu**: Download `Sung-<version>-Linux-x86_64.deb` and install via `sudo dpkg -i`.
-- **Fedora / RHEL**: Download `Sung-<version>-Linux-x86_64.rpm` and install via `sudo dnf install`.
-
-### Android
-- **ARM64**: Download `Sung-<version>-Android-arm64.apk` and tap to install.
-- **x86_64**: Download `Sung-<version>-Android-x86_64.apk` for x86_64 devices/emulators.
-
----
-
-## Features
-
-- **YouTube Music** — search songs, albums, artists and playlists; play audio without an embedded browser or ad interface.
-- **Your music** — import FLAC, MP3 and other supported audio files or folders. Mix local and YouTube songs in the same playlists.
-- **Lyrics & Romanization** — synchronized lyrics, immersive view, timing adjustments, LRC import and search with automatic Japanese & Korean text romanization.
-- **Library tools** — likes, listening history, smart mixes, playlist cleanup, multi-selection, drag reordering and Undo.
-- **Playback controls** — mini player, queue editing, shuffle, repeat, sleep timer, playback speed and audio-device selection.
-- **Desktop integration** — media keys through MPRIS, optional notifications, dynamic Material 3 album color palettes, light/dark themes and Noctalia palette support.
-
-Native rendering, one audio decoder and bounded artwork caches keep Sung lightweight. Animations can be disabled in Settings.
-
-## Install
-
-### CachyOS / Arch Linux
+### Quick Install (Arch Linux / CachyOS)
 
 Install the build and runtime dependencies:
 
@@ -62,7 +28,7 @@ Install the build and runtime dependencies:
 sudo pacman -S --needed git base-devel cmake ninja python nodejs ffmpeg qt6-base qt6-declarative qt6-multimedia qt6-svg qt6-wayland
 ```
 
-Download and install Sung:
+Clone and install Sung:
 
 ```bash
 git clone https://github.com/adeleeeeyyyy/Sung.git
@@ -83,6 +49,19 @@ Installation is per-user in `~/.local`; do not run the install script with `sudo
 Install the equivalent development packages for **Qt 6.4+** (Core, Gui, Quick, Qml, QuickControls2, Multimedia, Network, DBus, Svg and Wayland), a C++20 compiler, CMake 3.24+, Ninja, Python 3 with `venv`/`pip`, Node.js 20+ and FFmpeg. Then follow the clone and install commands above.
 
 Sung uses Google Sans Flex when installed and otherwise falls back to a system font. Noctalia is optional.
+
+---
+
+## Features
+
+- **YouTube Music** — search songs, albums, artists and playlists; play audio without an embedded browser or ad interface.
+- **Your music** — import FLAC, MP3 and other supported audio files or folders. Mix local and YouTube songs in the same playlists.
+- **Lyrics & Romanization** — synchronized lyrics, immersive view, timing adjustments, LRC import and search with automatic Japanese & Korean text romanization.
+- **Library tools** — likes, listening history, smart mixes, playlist cleanup, multi-selection, drag reordering and Undo.
+- **Playback controls** — mini player, queue editing, shuffle, repeat, sleep timer, playback speed and audio-device selection.
+- **Desktop integration** — media keys through MPRIS, optional notifications, dynamic Material 3 album color palettes, light/dark themes and Noctalia palette support.
+
+Native rendering, one audio decoder and bounded artwork caches keep Sung lightweight. Animations can be disabled in Settings.
 
 ## Getting started
 
